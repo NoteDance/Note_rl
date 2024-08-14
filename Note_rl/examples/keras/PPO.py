@@ -1,5 +1,6 @@
 import tensorflow as tf
-from Note import nn
+from Note_rl.RL import RL
+from Note_rl.assign_param import assign_param
 from tensorflow.keras import Model
 import gym
 
@@ -26,12 +27,12 @@ class critic(Model):
         return self.dense2(x)
     
     
-class PPO(nn.RL):
+class PPO(RL):
     def __init__(self,state_dim,hidden_dim,action_dim,clip_eps,alpha):
         super().__init__()
         self.actor=actor(state_dim,hidden_dim,action_dim)
         self.actor_old=actor(state_dim,hidden_dim,action_dim)
-        nn.assign_param(self.actor_old.weights,self.actor.weights)
+        assign_param(self.actor_old.weights,self.actor.weights)
         self.critic=critic(state_dim,hidden_dim)
         self.clip_eps=clip_eps
         self.alpha=alpha
@@ -57,5 +58,5 @@ class PPO(nn.RL):
         return [tf.reduce_mean(clip_loss),tf.reduce_mean((TD)**2)]
     
     def update_param(self):
-        nn.assign_param(self.actor.weights, self.actor.weights)
+        assign_param(self.actor.weights, self.actor.weights)
         return

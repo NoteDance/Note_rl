@@ -1,5 +1,5 @@
 import torch
-from Note import nn
+from Note_rl.RL_pytorch import RL_pytorch
 import gym
 import torch.nn.functional as F
 
@@ -18,7 +18,7 @@ class VAnet(torch.nn.Module):
         return Q
     
     
-class DuelingDQN(nn.RL_pytorch):
+class DuelingDQN(RL_pytorch):
     def __init__(self,state_dim,hidden_dim,action_dim):
         super().__init__()
         if torch.cuda.is_available():

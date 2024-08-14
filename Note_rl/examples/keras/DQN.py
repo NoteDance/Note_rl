@@ -1,5 +1,6 @@
 import tensorflow as tf
-from Note import nn
+from Note_rl.RL import RL
+from Note_rl.assign_param import assign_param
 from tensorflow.keras import Model
 import gym
 
@@ -15,7 +16,7 @@ class Qnet(Model):
         return x
     
     
-class DQN(nn.RL):
+class DQN(RL):
     def __init__(self,state_dim,hidden_dim,action_dim):
         super().__init__()
         self.q_net=Qnet(state_dim,hidden_dim,action_dim)
@@ -34,5 +35,5 @@ class DQN(nn.RL):
         return tf.reduce_mean((q_value-target)**2)
     
     def update_param(self):
-        nn.assign_param(self.target_q_net.weights,self.param)
+        assign_param(self.target_q_net.weights,self.param)
         return

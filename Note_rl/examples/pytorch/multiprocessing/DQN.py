@@ -1,5 +1,5 @@
 import torch
-from Note import nn
+from Note_rl.RL_pytorch import RL_pytorch
 import gym
 import torch.nn.functional as F
 
@@ -15,7 +15,7 @@ class Qnet(torch.nn.Module):
         return self.fc2(x)
     
     
-class DQN(nn.RL_pytorch):
+class DQN(RL_pytorch):
     def __init__(self,state_dim,hidden_dim,action_dim,processes):
         super().__init__()
         if torch.cuda.is_available():

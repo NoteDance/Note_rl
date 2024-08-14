@@ -1,5 +1,5 @@
 import torch
-from Note import nn
+from Note_rl.RL_pytorch import RL_pytorch
 import torch.nn.functional as F
 import numpy as np
 import random
@@ -57,7 +57,7 @@ class WorldEnv:
         return self.state, reward, done, None
 
 
-class DDPG(nn.RL_pytorch):
+class DDPG(RL_pytorch):
     def __init__(self,hidden_dim,sigma,gamma,tau,processes):
         super().__init__()
         if torch.cuda.is_available():

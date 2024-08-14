@@ -1,5 +1,5 @@
 import torch
-from Note import nn
+from Note_rl.RL_pytorch import RL_pytorch
 import numpy as np
 import torch.nn.functional as F
 import gym
@@ -67,7 +67,7 @@ class critic(torch.nn.Module):
         return self.fc2(x)
 
 
-class DDPG(nn.RL_pytorch):
+class DDPG(RL_pytorch):
     def __init__(self,hidden_dim,sigma,gamma,tau):
         super().__init__()
         if torch.cuda.is_available():

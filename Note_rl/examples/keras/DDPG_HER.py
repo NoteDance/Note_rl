@@ -1,5 +1,6 @@
 import tensorflow as tf
-from Note import nn
+from Note_rl.RL import RL
+from Note_rl.assign_param import assign_param
 from tensorflow.keras import Model
 import numpy as np
 import random
@@ -57,7 +58,7 @@ class WorldEnv:
         return self.state, reward, done, None
 
 
-class DDPG(nn.RL):
+class DDPG(RL):
     def __init__(self,hidden_dim,sigma,gamma,tau):
         super().__init__()
         self.env=WorldEnv()
@@ -68,8 +69,8 @@ class DDPG(nn.RL):
         self.critic=critic(state_dim,hidden_dim,action_dim)
         self.target_actor=actor(state_dim,hidden_dim,action_dim,action_bound)
         self.target_critic=critic(state_dim,hidden_dim,action_dim)
-        nn.assign_param(self.target_actor.weights,self.actor.weights)
-        nn.assign_param(self.target_critic.weights,self.critic.weights)
+        assign_param(self.target_actor.weights,self.actor.weights)
+        assign_param(self.target_critic.weights,self.critic.weights)
         self.param=[self.actor.weights,self.critic.weights]
         self.sigma=sigma
         self.gamma=gamma

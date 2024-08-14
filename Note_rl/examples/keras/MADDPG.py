@@ -1,5 +1,6 @@
 import tensorflow as tf
-from Note import nn
+from Note_rl.RL import RL
+from Note_rl.assign_param import assign_param
 from tensorflow.keras import Model
 import numpy as np
 import gym
@@ -68,7 +69,7 @@ class critic(Model):
         return self.dense2(x)
 
 
-class DDPG(nn.RL):
+class DDPG(RL):
     def __init__(self,hidden_dim,sigma,gamma,tau):
         super().__init__()
         self.env=MultiAgentEnv()
@@ -78,8 +79,8 @@ class DDPG(nn.RL):
         self.critic=[critic(state_dim,hidden_dim,action_dim) for _ in range(self.env.num_agents)]
         self.target_actor=[actor(state_dim,hidden_dim,action_dim) for _ in range(self.env.num_agents)]
         self.target_critic=[critic(state_dim,hidden_dim,action_dim) for _ in range(self.env.num_agents)]
-        [nn.assign_param(self.target_actor[i].weights,self.actor[i].weights) for i in range(self.env.num_agents)]
-        [nn.assign_param(self.target_critic[i].weights,self.critic[i].weights) for i in range(self.env.num_agents)]
+        [assign_param(self.target_actor[i].weights,self.actor[i].weights) for i in range(self.env.num_agents)]
+        [assign_param(self.target_critic[i].weights,self.critic[i].weights) for i in range(self.env.num_agents)]
         self.param=[[self.actor[i].weights for i in range(self.env.num_agents)],[self.critic[i].weights for i in range(self.env.num_agents)]]
         self.sigma=sigma
         self.gamma=gamma
