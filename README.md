@@ -300,7 +300,7 @@ model.train(GLOBAL_BATCH_SIZE, optimizer, 2000)
 # Use Multi-agent reinforcement learning
 import tensorflow as tf
 from Note_rl.policy import SoftmaxPolicy
-from Note_rl.examples.keras.MADDPG import DDPG # https://github.com/NoteDance/Note/blob/Note-7.0/Note/models/docs_example/RL/keras/MADDPG.py
+from Note_rl.examples.keras.MADDPG import DDPG
 
 strategy = tf.distribute.MirroredStrategy()
 BATCH_SIZE_PER_REPLICA = 32
