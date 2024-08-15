@@ -106,6 +106,20 @@ optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
 train_loss = tf.keras.metrics.Mean(name='train_loss')
 model.train(train_loss, optimizer, 100)
 ```
+```python
+# This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
+import tensorflow as tf
+from Note_rl.policy import EpsGreedyQPolicy
+from Note_rl.examples.keras.multiprocessing.DQN import DQN
+import multiprocessing as mp
+
+model=DQN(4,128,2,7)
+model.set_up(policy=EpsGreedyQPolicy(0.01),pool_size=10000,update_batches=17)
+optimizer = tf.keras.optimizers.Adam()
+train_loss = tf.keras.metrics.Mean(name='train_loss')
+manager=mp.Manager()
+model.train(train_loss, optimizer, 100, mp=mp, manager=manager, processes=7)
+```
 ## PyTorch:
 Agent built with PyTorch.
 ```python
@@ -312,4 +326,22 @@ with strategy.scope():
 
 model.set_up(policy=SoftmaxPolicy(),pool_size=3000,trial_count=10,MA=True)
 model.train(GLOBAL_BATCH_SIZE, optimizer, 100)
+```
+```python
+# This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
+import tensorflow as tf
+from Note_rl.policy import EpsGreedyQPolicy
+from Note_rl.examples.keras.multiprocessing.DQN import DQN
+import multiprocessing as mp
+
+strategy = tf.distribute.MirroredStrategy()
+BATCH_SIZE_PER_REPLICA = 64
+GLOBAL_BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
+
+with strategy.scope():
+  model=DQN(4,128,2,7)
+  optimizer = tf.keras.optimizers.Adam()
+model.set_up(policy=EpsGreedyQPolicy(0.01),pool_size=10000,update_batches=17)
+manager=mp.Manager()
+model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, 100, mp=mp, manager=manager, processes=7)
 ```
