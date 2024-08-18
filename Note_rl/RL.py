@@ -330,6 +330,15 @@ class RL:
                         else:
                             self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
                         self.batch_counter+=1
+                    if self.pool_network==True:
+                        if self.batch_counter%self.update_batches==0:
+                            self.update_param()
+                            if self.PPO:
+                                self.state_pool=None
+                                self.action_pool=None
+                                self.next_state_pool=None
+                                self.reward_pool=None
+                                self.done_pool=None
                 if len(self.state_pool)%self.batch!=0:
                     state_batch,action_batch,next_state_batch,reward_batch,done_batch=self.data_func()
                     if self.distributed_flag==True:
@@ -345,6 +354,15 @@ class RL:
                         else:
                             self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
                         self.batch_counter+=1
+                    if self.pool_network==True:
+                        if self.batch_counter%self.update_batches==0:
+                            self.update_param()
+                            if self.PPO:
+                                self.state_pool=None
+                                self.action_pool=None
+                                self.next_state_pool=None
+                                self.reward_pool=None
+                                self.done_pool=None
             else:
                 if self.distributed_flag==True:
                     total_loss = 0.0
@@ -363,6 +381,15 @@ class RL:
                             total_loss+=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
                         num_batches += 1
                         self.batch_counter += 1
+                        if self.pool_network==True:
+                            if self.batch_counter%self.update_batches==0:
+                                self.update_param()
+                                if self.PPO:
+                                    self.state_pool=None
+                                    self.action_pool=None
+                                    self.next_state_pool=None
+                                    self.reward_pool=None
+                                    self.done_pool=None
                 else:
                     if self.pool_network==True:
                         if self.shuffle!=True:
@@ -378,25 +405,24 @@ class RL:
                             self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
                         num_batches += 1
                         self.batch_counter += 1
+                        if self.pool_network==True:
+                            if self.batch_counter%self.update_batches==0:
+                                self.update_param()
+                                if self.PPO:
+                                    self.state_pool=None
+                                    self.action_pool=None
+                                    self.next_state_pool=None
+                                    self.reward_pool=None
+                                    self.done_pool=None
             if self.update_steps!=None:
-                if self.pool_network==True:
-                    if self.batch_counter%self.update_batches==0:
-                        self.update_param()
-                        if self.PPO:
-                            self.state_pool=None
-                            self.action_pool=None
-                            self.next_state_pool=None
-                            self.reward_pool=None
-                            self.done_pool=None
-                else:
-                    if self.step_counter%self.update_steps==0:
-                        self.update_param()
-                        if self.PPO:
-                            self.state_pool=None
-                            self.action_pool=None
-                            self.next_state_pool=None
-                            self.reward_pool=None
-                            self.done_pool=None
+                if self.step_counter%self.update_steps==0:
+                    self.update_param()
+                    if self.PPO:
+                        self.state_pool=None
+                        self.action_pool=None
+                        self.next_state_pool=None
+                        self.reward_pool=None
+                        self.done_pool=None
             else:
                 self.update_param()
         if self.distributed_flag==True:
