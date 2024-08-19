@@ -221,7 +221,7 @@ model.train(train_loss, optimizer, 2000, mp=mp, manager=manager, processes=7, pr
 ```
 
 # Distributed training:
-## Keras:
+## MirroredStrategy:
 Agent built with Keras.
 ```python
 import tensorflow as tf
@@ -344,4 +344,39 @@ with strategy.scope():
 model.set_up(policy=EpsGreedyQPolicy(0.01),pool_size=10000,update_batches=17)
 manager=mp.Manager()
 model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100, mp=mp, manager=manager, processes=7)
+```
+## MultiWorkerMirroredStrategy:
+```python
+import tensorflow as tf
+from Note.RL import rl
+from Note_rl.examples.keras.multiprocessing.DQN import DQN
+import multiprocessing as mp
+import sys
+import os
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ.pop('TF_CONFIG', None)
+if '.' not in sys.path:
+  sys.path.insert(0, '.')
+
+tf_config = {
+    'cluster': {
+        'worker': ['localhost:12345', 'localhost:23456']
+    },
+    'task': {'type': 'worker', 'index': 0}
+}
+
+strategy = tf.distribute.MultiWorkerMirroredStrategy()
+per_worker_batch_size = 64
+num_workers = len(tf_config['cluster']['worker'])
+global_batch_size = per_worker_batch_size * num_workers
+
+with strategy.scope():
+  multi_worker_model = DQN(4,128,2)
+  optimizer = tf.keras.optimizers.Adam()
+
+multi_worker_model.set_up(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_batches=17)
+manager=mp.Manager()
+multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
+                    mp=mp, manager=manager, processes=7)
 ```
