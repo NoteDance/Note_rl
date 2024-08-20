@@ -240,6 +240,14 @@ class RL:
         return s,a,next_s,r,d
     
     
+    def dataset_fn(self, dataset, global_batch_size, input_context):
+        batch_size = input_context.get_per_replica_batch_size(global_batch_size)
+        dataset = dataset.shard(input_context.num_input_pipelines,
+                                input_context.input_pipeline_id)
+        dataset = dataset.batch(batch_size)
+        return dataset
+    
+    
     @tf.function(jit_compile=True)
     def train_step(self, train_data, train_loss, optimizer):
         with tf.GradientTape() as tape:
@@ -298,8 +306,8 @@ class RL:
                              axis=None)
     
     
-    def CTL(self, train_dist_dataset, num_steps_per_episode=None):
-        iterator = iter(train_dist_dataset)
+    def CTL(self, multi_worker_dataset, num_steps_per_episode=None):
+        iterator = iter(multi_worker_dataset)
         total_loss = 0.0
         num_batches = 0
         
