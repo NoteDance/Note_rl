@@ -111,14 +111,12 @@ model.train(train_loss, optimizer, 100)
 import tensorflow as tf
 from Note_rl.policy import EpsGreedyQPolicy
 from Note_rl.examples.keras.multiprocessing.DQN import DQN
-import multiprocessing as mp
 
 model=DQN(4,128,2,7)
 model.set_up(policy=EpsGreedyQPolicy(0.01),pool_size=10000,update_batches=17)
 optimizer = tf.keras.optimizers.Adam()
 train_loss = tf.keras.metrics.Mean(name='train_loss')
-manager=mp.Manager()
-model.train(train_loss, optimizer, 100, mp=mp, manager=manager, processes=7)
+model.train(train_loss, optimizer, 100, pool_network=True, processes=7)
 ```
 ## PyTorch:
 Agent built with PyTorch.
@@ -197,13 +195,11 @@ model.train(optimizer, 100)
 import torch
 from Note_rl.policy import EpsGreedyQPolicy
 from Note_rl.examples.pytorch.multiprocessing.DQN import DQN
-import multiprocessing as mp
 
 model=DQN(4,128,2,7)
 model.set_up(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_batches=17)
 optimizer = torch.optim.Adam(model.param)
-manager=mp.Manager()
-model.train(optimizer, 100, mp=mp, manager=manager, processes=7)
+model.train(optimizer, 100, pool_network=True, processes=7)
 ```
 ```python
 # This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
@@ -211,13 +207,11 @@ model.train(optimizer, 100, mp=mp, manager=manager, processes=7)
 import torch
 from Note_rl.noise import GaussianWhiteNoiseProcess
 from Note_rl.examples.pytorch.multiprocessing.DDPG_HER import DDPG
-import multiprocessing as mp
 
 model=DDPG(128,0.1,0.98,0.005,7)
 model.set_up(noise=GaussianWhiteNoiseProcess(),pool_size=10000,batch=256,trial_count=10,HER=True)
 optimizer = [torch.optim.Adam(model.param[0]),torch.optim.Adam(model.param[1])]
-manager=mp.Manager()
-model.train(train_loss, optimizer, 2000, mp=mp, manager=manager, processes=7, processes_her=4)
+model.train(train_loss, optimizer, 2000, pool_network=True, processes=7, processes_her=4)
 ```
 
 # Distributed training:
@@ -332,7 +326,6 @@ model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
 import tensorflow as tf
 from Note_rl.policy import EpsGreedyQPolicy
 from Note_rl.examples.keras.multiprocessing.DQN import DQN
-import multiprocessing as mp
 
 strategy = tf.distribute.MirroredStrategy()
 BATCH_SIZE_PER_REPLICA = 64
@@ -342,15 +335,13 @@ with strategy.scope():
   model=DQN(4,128,2,7)
   optimizer = tf.keras.optimizers.Adam()
 model.set_up(policy=EpsGreedyQPolicy(0.01),pool_size=10000,update_batches=17)
-manager=mp.Manager()
-model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100, mp=mp, manager=manager, processes=7)
+model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100, pool_network=True, processes=7)
 ```
 ## MultiWorkerMirroredStrategy:
 ```python
 import tensorflow as tf
 from Note.RL import rl
 from Note_rl.examples.keras.multiprocessing.DQN import DQN
-import multiprocessing as mp
 import sys
 import os
 
@@ -376,7 +367,6 @@ with strategy.scope():
   optimizer = tf.keras.optimizers.Adam()
 
 multi_worker_model.set_up(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_batches=17)
-manager=mp.Manager()
 multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
-                    mp=mp, manager=manager, processes=7)
+                    pool_network=True, processes=7)
 ```
