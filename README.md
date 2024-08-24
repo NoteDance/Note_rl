@@ -369,4 +369,47 @@ with strategy.scope():
 multi_worker_model.set_up(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_batches=17)
 multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
                     pool_network=True, processes=7)
+
+# If set criterion.
+# model.set_up(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200)
+# multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
+#                    pool_network=True, processes=7)
+
+# If use prioritized replay.
+# model.set_up(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200,PR=True,initial_TD=7,alpha=0.7)
+# multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
+#                    pool_network=True, processes=7)
+
+# If save the model at intervals of 10 episode, with a maximum of 2 saved file, and the file name is model.dat.
+# model.path='model.dat'
+# model.save_freq=10
+# model. max_save_files=2
+# multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
+#                    pool_network=True, processes=7)
+
+# If save parameters only
+# model.path='param.dat'
+# model.save_freq=10
+# model. max_save_files=2
+# model.save_param_only=True
+# multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
+#                    pool_network=True, processes=7)
+
+# If save best only
+# model.path='model.dat'
+# model.save_best_only=True
+# multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
+#                    pool_network=True, processes=7)
+
+# visualize
+# model.visualize_loss()
+# model.visualize_reward()
+# model.visualize_reward_loss()
+
+# animate agent
+# model.animate_agent(200)
+
+# save
+# model.save_param('param.dat')
+# model.save('model.dat')
 ```
