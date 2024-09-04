@@ -110,7 +110,7 @@ model.train(train_loss, optimizer, 100)
 # This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
 import tensorflow as tf
 from Note_rl.policy import EpsGreedyQPolicy
-from Note_rl.examples.keras.multiprocessing.DQN import DQN
+from Note_rl.examples.keras.pool_network.DQN import DQN
 
 model=DQN(4,128,2,7)
 model.set_up(policy=EpsGreedyQPolicy(0.01),pool_size=10000,update_batches=17)
@@ -194,7 +194,7 @@ model.train(optimizer, 100)
 # This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
 import torch
 from Note_rl.policy import EpsGreedyQPolicy
-from Note_rl.examples.pytorch.multiprocessing.DQN import DQN
+from Note_rl.examples.pytorch.pool_network.DQN import DQN
 
 model=DQN(4,128,2,7)
 model.set_up(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_batches=17)
@@ -206,7 +206,7 @@ model.train(optimizer, 100, pool_network=True, processes=7)
 # Furthermore use Python’s multiprocessing module to speed up getting a batch of data.
 import torch
 from Note_rl.noise import GaussianWhiteNoiseProcess
-from Note_rl.examples.pytorch.multiprocessing.DDPG_HER import DDPG
+from Note_rl.examples.pytorch.pool_network.DDPG_HER import DDPG
 
 model=DDPG(128,0.1,0.98,0.005,7)
 model.set_up(noise=GaussianWhiteNoiseProcess(),pool_size=10000,batch=256,trial_count=10,HER=True)
@@ -325,7 +325,7 @@ model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
 # This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
 import tensorflow as tf
 from Note_rl.policy import EpsGreedyQPolicy
-from Note_rl.examples.keras.multiprocessing.DQN import DQN
+from Note_rl.examples.keras.pool_network.DQN import DQN
 
 strategy = tf.distribute.MirroredStrategy()
 BATCH_SIZE_PER_REPLICA = 64
@@ -341,7 +341,7 @@ model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100, pool_net
 ```python
 import tensorflow as tf
 from Note.RL import rl
-from Note_rl.examples.keras.multiprocessing.DQN import DQN
+from Note_rl.examples.keras.pool_network.DQN import DQN
 import sys
 import os
 
