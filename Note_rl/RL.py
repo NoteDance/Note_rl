@@ -552,10 +552,12 @@ class RL:
                 if len(self.state_pool)>1:
                     self.prioritized_replay.TD=np.append(self.prioritized_replay.TD,self.initial_TD)
                 if len(self.state_pool)>self.pool_size:
-                    self.prioritized_replay.TD=np.append([self.initial_TD,self.prioritized_replay.TD[1:]])
+                    self.prioritized_replay.TD=np.append(self.prioritized_replay.TD[1:],self.initial_TD)
             if self.MA==True:
                 r,done=self.reward_done_func_ma(r,done)
             self.reward=r+self.reward
+            if self.PR==True:
+                self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
             loss=self.train1(train_loss,optimizer)
             self.step_counter+=1
             if done:
@@ -642,7 +644,7 @@ class RL:
                     index1=index*math.ceil(self.pool_size/self.processes)
                     index2=(index+1)*math.ceil(self.pool_size/self.processes)
                     if len(self.state_pool_list[index])>math.ceil(self.pool_size/self.processes):
-                        self.prioritized_replay.TD[7][index1:index2]=np.append([self.initial_TD,self.prioritized_replay.TD[7][index1:index2][1:]])
+                        self.prioritized_replay.TD[7][index1:index2]=np.append(self.prioritized_replay.TD[7][index1:index2][1:],self.initial_TD)
                 self.step_counter.value+=1
                 lock_list[index].release()
             else:
@@ -756,8 +758,6 @@ class RL:
                         del self.reward_list[0]
                     loss=self.train1(train_loss, self.optimizer_)
                 else:
-                    if self.PR==True:
-                        self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                     loss=self.train2(train_loss,self.optimizer_)
                 self.loss=loss
                 self.loss_list.append(loss)
@@ -827,8 +827,6 @@ class RL:
                         del self.reward_list[0]
                     loss=self.train1(train_loss, self.optimizer_)
                 else:
-                    if self.PR==True:
-                        self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                     loss=self.train2(train_loss,self.optimizer_)
                 self.loss=loss
                 self.loss_list.append(loss)
@@ -983,8 +981,6 @@ class RL:
                             del self.reward_list[0]
                         loss=self.train1(None, self.optimizer_)
                     else:
-                        if self.PR==True:
-                            self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                         loss=self.train2(None,self.optimizer_)
                     self.loss=loss
                     self.loss_list.append(loss)
@@ -1053,8 +1049,6 @@ class RL:
                             del self.reward_list[0]
                         loss=self.train1(None, self.optimizer_)
                     else:
-                        if self.PR==True:
-                            self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                         loss=self.train2(None,self.optimizer_)
                     self.loss=loss
                     self.loss_list.append(loss)
@@ -1126,8 +1120,6 @@ class RL:
                             del self.reward_list[0]
                         loss=self.train1(None, self.optimizer_)
                     else:
-                        if self.PR==True:
-                            self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                         loss=self.train2(None,self.optimizer_)
                         
                     if self.path!=None and episode%self.save_freq==0:
@@ -1202,8 +1194,6 @@ class RL:
                             del self.reward_list[0]
                         loss=self.train1(None, self.optimizer_)
                     else:
-                        if self.PR==True:
-                            self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                         loss=self.train2(None,self.optimizer_)
                         
                     if self.path!=None and episode%self.save_freq==0:
