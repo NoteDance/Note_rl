@@ -41,7 +41,7 @@ class RL:
         self.total_time=0
     
     
-    def set_up(self,policy=None,noise=None,pool_size=None,batch=None,update_batches=None,update_steps=None,trial_count=None,criterion=None,PPO=False,HER=False,MA=False,PR=False,epsilon=None,initial_TD=7,alpha=0.7):
+    def set_up(self,policy=None,noise=None,pool_size=None,batch=None,update_batches=None,update_steps=None,trial_count=None,criterion=None,PPO=False,HER=False,MA=False,PR=False,epsilon=None,initial_TD=7.,alpha=0.7):
         self.policy=policy
         self.noise=noise
         self.pool_size=pool_size
@@ -699,6 +699,9 @@ class RL:
                 lock_list=[mp.Lock() for _ in range(processes)]
             else:
                 lock_list=None
+            if self.PR==True:
+                self.prioritized_replay.TD=manager.dict()
+                self.prioritized_replay.TD[7]=np.ones([self.pool_size])*tf.Variable(self.initial_TD)
             if processes_her!=None:
                 self.state_pool=manager.dict()
                 self.action_pool=manager.dict()
@@ -725,6 +728,8 @@ class RL:
                 t1=time.time()
                 train_loss.reset_states()
                 if pool_network==True:
+                    if self.PR==True:
+                        self.prioritized_replay.TD[7]=np.array(self.prioritized_replay.TD[7])
                     process_list=[]
                     for p in range(processes):
                         process=mp.Process(target=self.store_in_parallel,args=(p,lock_list))
@@ -732,7 +737,7 @@ class RL:
                         process_list.append(process)
                     for process in process_list:
                         process.join()
-                    if processes_her==None:
+                    if processes_her==None and processes_pr==None:
                         self.state_pool=np.concatenate(self.state_pool_list)
                         self.action_pool=np.concatenate(self.action_pool_list)
                         self.next_state_pool=np.concatenate(self.next_state_pool_list)
@@ -744,6 +749,10 @@ class RL:
                         self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                         self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                         self.done_pool[7]=np.concatenate(self.done_pool_list)
+                    if self.PR==True:
+                        self.prioritized_replay.TD[7]=tf.Variable(self.prioritized_replay.TD[7])
+                    else:
+                        self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                     self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                     if len(self.reward_list)>self.trial_count:
                         del self.reward_list[0]
@@ -790,6 +799,8 @@ class RL:
                 t1=time.time()
                 train_loss.reset_states()
                 if pool_network==True:
+                    if self.PR==True:
+                        self.prioritized_replay.TD[7]=np.array(self.prioritized_replay.TD[7])
                     process_list=[]
                     for p in range(processes):
                         process=mp.Process(target=self.store_in_parallel,args=(p,lock_list))
@@ -797,7 +808,7 @@ class RL:
                         process_list.append(process)
                     for process in process_list:
                         process.join()
-                    if processes_her==None:
+                    if processes_her==None and processes_pr==None:
                         self.state_pool=np.concatenate(self.state_pool_list)
                         self.action_pool=np.concatenate(self.action_pool_list)
                         self.next_state_pool=np.concatenate(self.next_state_pool_list)
@@ -809,6 +820,10 @@ class RL:
                         self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                         self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                         self.done_pool[7]=np.concatenate(self.done_pool_list)
+                    if self.PR==True:
+                        self.prioritized_replay.TD[7]=tf.Variable(self.prioritized_replay.TD[7])
+                    else:
+                        self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                     self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                     if len(self.reward_list)>self.trial_count:
                         del self.reward_list[0]
@@ -860,7 +875,7 @@ class RL:
         return
     
     
-    def distributed_training(self, global_batch_size, optimizer, strategy, episodes=None, num_episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, shuffle=False, p=None):
+    def distributed_training(self, global_batch_size, optimizer, strategy, episodes=None, num_episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, shuffle=False, p=None):
         avg_reward=None
         if num_episodes!=None:
             episodes=num_episodes
@@ -880,6 +895,7 @@ class RL:
         self.pool_network=pool_network
         self.processes=processes
         self.processes_her=processes_her
+        self.processes_pr=processes_pr
         self.shuffle=shuffle
         if pool_network==True:
             mp=multiprocessing
@@ -904,6 +920,9 @@ class RL:
                 lock_list=[mp.Lock() for _ in range(processes)]
             else:
                 lock_list=None
+            if self.PR==True:
+                self.prioritized_replay.TD=manager.dict()
+                self.prioritized_replay.TD[7]=np.ones([self.pool_size])*tf.Variable(self.initial_TD)
             if processes_her!=None:
                 self.state_pool=manager.dict()
                 self.action_pool=manager.dict()
@@ -936,6 +955,8 @@ class RL:
                 for i in range(episodes):
                     t1=time.time()
                     if pool_network==True:
+                        if self.PR==True:
+                            self.prioritized_replay.TD[7]=np.array(self.prioritized_replay.TD[7])
                         process_list=[]
                         for p in range(processes):
                             process=mp.Process(target=self.store_in_parallel,args=(p,lock_list))
@@ -943,7 +964,7 @@ class RL:
                             process_list.append(process)
                         for process in process_list:
                             process.join()
-                        if processes_her==None:
+                        if processes_her==None and processes_pr==None:
                             self.state_pool=np.concatenate(self.state_pool_list)
                             self.action_pool=np.concatenate(self.action_pool_list)
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
@@ -955,6 +976,10 @@ class RL:
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
+                        if self.PR==True:
+                            self.prioritized_replay.TD[7]=tf.Variable(self.prioritized_replay.TD[7])
+                        else:
+                            self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
@@ -1000,6 +1025,8 @@ class RL:
                 while True:
                     t1=time.time()
                     if pool_network==True:
+                        if self.PR==True:
+                            self.prioritized_replay.TD[7]=np.array(self.prioritized_replay.TD[7])
                         process_list=[]
                         for p in range(processes):
                             process=mp.Process(target=self.store_in_parallel,args=(p,lock_list))
@@ -1007,7 +1034,7 @@ class RL:
                             process_list.append(process)
                         for process in process_list:
                             process.join()
-                        if processes_her==None:
+                        if processes_her==None and processes_pr==None:
                             self.state_pool=np.concatenate(self.state_pool_list)
                             self.action_pool=np.concatenate(self.action_pool_list)
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
@@ -1019,6 +1046,10 @@ class RL:
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
+                        if self.PR==True:
+                            self.prioritized_replay.TD[7]=tf.Variable(self.prioritized_replay.TD[7])
+                        else:
+                            self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
@@ -1067,6 +1098,8 @@ class RL:
                 while episode < num_episodes:
                     t1=time.time()
                     if pool_network==True:
+                        if self.PR==True:
+                            self.prioritized_replay.TD[7]=np.array(self.prioritized_replay.TD[7])
                         process_list=[]
                         for p in range(processes):
                             process=mp.Process(target=self.store_in_parallel,args=(p,lock_list))
@@ -1074,7 +1107,7 @@ class RL:
                             process_list.append(process)
                         for process in process_list:
                             process.join()
-                        if processes_her==None:
+                        if processes_her==None and processes_pr==None:
                             self.state_pool=np.concatenate(self.state_pool_list)
                             self.action_pool=np.concatenate(self.action_pool_list)
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
@@ -1086,6 +1119,10 @@ class RL:
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
+                        if self.PR==True:
+                            self.prioritized_replay.TD[7]=tf.Variable(self.prioritized_replay.TD[7])
+                        else:
+                            self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
@@ -1137,6 +1174,8 @@ class RL:
                 while True:
                     t1=time.time()
                     if pool_network==True:
+                        if self.PR==True:
+                            self.prioritized_replay.TD[7]=np.array(self.prioritized_replay.TD[7])
                         process_list=[]
                         for p in range(processes):
                             process=mp.Process(target=self.store_in_parallel,args=(p,lock_list))
@@ -1144,7 +1183,7 @@ class RL:
                             process_list.append(process)
                         for process in process_list:
                             process.join()
-                        if processes_her==None:
+                        if processes_her==None and processes_pr==None:
                             self.state_pool=np.concatenate(self.state_pool_list)
                             self.action_pool=np.concatenate(self.action_pool_list)
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
@@ -1156,6 +1195,10 @@ class RL:
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
+                        if self.PR==True:
+                            self.prioritized_replay.TD[7]=tf.Variable(self.prioritized_replay.TD[7])
+                        else:
+                            self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
