@@ -1,7 +1,7 @@
 from torch.utils.data import DataLoader
 import multiprocessing
 import Note_rl.policy as Policy
-import Note_rl.prioritized_replay.pr as pr
+import Note_rl.prioritized_replay.pr_ as pr
 from multiprocessing import Array,Value
 import numpy as np
 import numpy.ctypeslib as npc
