@@ -176,8 +176,22 @@ class RL_pytorch:
     
     
     def data_func(self):
-        if self.pr_:
-            s,a,next_s,r,d=self.prioritized_replay.sample(self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool,self.epsilon,self.alpha,self.batch)
+        if self.PR:
+            if self.processes_pr!=None:
+                process_list=[]
+                for p in range(self.processes_pr):
+                    process=self.mp.Process(target=self.get_batch_in_parallel,args=(p,))
+                    process.start()
+                    process_list.append(process)
+                for process in process_list:
+                    process.join()
+                s = np.array(self.state_list)
+                a = np.array(self.action_list)
+                next_s = np.array(self.next_state_list)
+                r = np.array(self.reward_list)
+                d = np.array(self.done_list)
+            else:
+                s,a,next_s,r,d=self.prioritized_replay.sample(self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool,self.epsilon,self.alpha,self.batch)
         elif self.HER:
             if self.processes_her!=None:
                 process_list=[]
@@ -327,10 +341,10 @@ class RL_pytorch:
             done=np.array(done)
             self.pool(s,a,next_s,r,done)
             if self.PR==True:
-                self.prioritized_replay.TD=np.append(self.prioritized_replay.TD,self.initial_TD)
+                if len(self.state_pool)>1:
+                    self.prioritized_replay.TD=np.append(self.prioritized_replay.TD,self.initial_TD)
                 if len(self.state_pool)>self.pool_size:
-                    TD=np.array(0)
-                    self.prioritized_replay.TD=np.append(TD,self.prioritized_replay.TD[2:])
+                    self.prioritized_replay.TD=np.append([self.initial_TD,self.prioritized_replay.TD[1:]])
             if self.MA==True:
                 r,done=self.reward_done_func_ma(r,done)
             self.reward=r+self.reward
@@ -416,6 +430,11 @@ class RL_pytorch:
             if self.HER!=True:
                 lock_list[index].acquire()
                 self.pool(s,a,next_s,r,done,index)
+                if self.PR==True:
+                    index1=index*math.ceil(self.pool_size/self.processes)
+                    index2=(index+1)*math.ceil(self.pool_size/self.processes)
+                    if len(self.state_pool_list[index])>math.ceil(self.pool_size/self.processes):
+                        self.prioritized_replay.TD[7][index1:index2]=np.append([self.initial_TD,self.prioritized_replay.TD[7][index1:index2][1:]])
                 self.step_counter.value+=1
                 lock_list[index].release()
             else:
@@ -429,7 +448,7 @@ class RL_pytorch:
             s=next_s
     
     
-    def train(self, optimizer, episodes=None, pool_network=True, processes=None, processes_her=None, shuffle=False, p=None):
+    def train(self, optimizer, episodes=None, pool_network=True, processes=None, processes_her=None, processes_pr=None, shuffle=False, p=None):
         avg_reward=None
         if p==None:
             self.p=9
@@ -446,6 +465,7 @@ class RL_pytorch:
         self.pool_network=pool_network
         self.processes=processes
         self.processes_her=processes_her
+        self.processes_pr=processes_pr
         self.shuffle=shuffle
         if pool_network==True:
             mp=multiprocessing
@@ -470,6 +490,9 @@ class RL_pytorch:
                 lock_list=[mp.Lock() for _ in range(processes)]
             else:
                 lock_list=None
+            if self.PR==True:
+                self.prioritized_replay.TD=manager.dict()
+                self.prioritized_replay.TD[7]=np.ones([self.pool_size])*self.initial_TD
             if processes_her!=None:
                 self.state_pool=manager.dict()
                 self.action_pool=manager.dict()
