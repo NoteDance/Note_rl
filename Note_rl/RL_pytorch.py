@@ -40,7 +40,7 @@ class RL_pytorch:
         self.total_time=0
     
     
-    def set_up(self,policy=None,noise=None,pool_size=None,batch=None,update_batches=None,update_steps=None,trial_count=None,criterion=None,PPO=False,HER=False,MA=False,PR=False,epsilon=None,initial_TD=7,alpha=0.7):
+    def set_up(self,policy=None,noise=None,pool_size=None,batch=None,update_batches=None,update_steps=None,trial_count=None,criterion=None,PPO=False,HER=False,MA=False,PR=False,epsilon=None,initial_TD=7.,alpha=0.7):
         self.policy=policy
         self.noise=noise
         self.pool_size=pool_size
@@ -522,7 +522,7 @@ class RL_pytorch:
                         process_list.append(process)
                     for process in process_list:
                         process.join()
-                    if processes_her==None:
+                    if processes_her==None and processes_pr==None:
                         self.state_pool=np.concatenate(self.state_pool_list)
                         self.action_pool=np.concatenate(self.action_pool_list)
                         self.next_state_pool=np.concatenate(self.next_state_pool_list)
@@ -586,7 +586,7 @@ class RL_pytorch:
                         process_list.append(process)
                     for process in process_list:
                         process.join()
-                    if processes_her==None:
+                    if processes_her==None and processes_pr==None:
                         self.state_pool=np.concatenate(self.state_pool_list)
                         self.action_pool=np.concatenate(self.action_pool_list)
                         self.next_state_pool=np.concatenate(self.next_state_pool_list)
