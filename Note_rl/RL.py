@@ -645,7 +645,11 @@ class RL:
             else:
                 self.pool(s,a,next_s,r,done,index)
                 if self.PR==True:
-                    self.TD_list[index]=np.array(self.TD_list[index])
+                    if self.prioritized_replay.TD is not None:
+                        if index==0:
+                            self.TD_list[index]=self.prioritized_replay.TD[0:len(self.state_pool_list[index])]
+                        else:
+                            self.TD_list[index]=self.prioritized_replay.TD[len(self.state_pool_list[index-1])-1:len(self.state_pool_list[index])]
                     if len(self.prioritized_replay.TD[index])>1:
                         self.TD_list[index]=np.append(self.TD_list[index],self.initial_TD)
                     if len(self.state_pool_list[index])>math.ceil(self.pool_size/self.processes):
@@ -706,6 +710,7 @@ class RL:
                 self.TD_list=manager.list()
                 for _ in range(processes):
                     self.TD_list.append(tf.Variable(self.initial_TD))
+                self.prioritized_replay.TD=None
             if processes_her!=None:
                 self.state_pool=manager.dict()
                 self.action_pool=manager.dict()
@@ -752,9 +757,7 @@ class RL:
                         self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                         self.done_pool[7]=np.concatenate(self.done_pool_list)
                     if self.PR==True:
-                        for i in range(processes):
-                            self.TD_list[i]=tf.Variable(self.TD_list[i])
-                        self.prioritized_replay.TD=tf.concat(self.TD_list, axis=0)
+                        self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                     self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                     if len(self.reward_list)>self.trial_count:
                         del self.reward_list[0]
@@ -821,9 +824,7 @@ class RL:
                         self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                         self.done_pool[7]=np.concatenate(self.done_pool_list)
                     if self.PR==True:
-                        for i in range(processes):
-                            self.TD_list[i]=tf.Variable(self.TD_list[i])
-                        self.prioritized_replay.TD=tf.concat(self.TD_list, axis=0)
+                        self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                     self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                     if len(self.reward_list)>self.trial_count:
                         del self.reward_list[0]
@@ -924,6 +925,7 @@ class RL:
                 self.TD_list=manager.list()
                 for _ in range(processes):
                     self.TD_list.append(tf.Variable(self.initial_TD))
+                self.prioritized_replay.TD=None
             if processes_her!=None:
                 self.state_pool=manager.dict()
                 self.action_pool=manager.dict()
@@ -976,9 +978,7 @@ class RL:
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
                         if self.PR==True:
-                            for i in range(processes):
-                                self.TD_list[i]=tf.Variable(self.TD_list[i])
-                            self.prioritized_replay.TD=tf.concat(self.TD_list, axis=0)
+                            self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
@@ -1044,9 +1044,7 @@ class RL:
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
                         if self.PR==True:
-                            for i in range(processes):
-                                self.TD_list[i]=tf.Variable(self.TD_list[i])
-                            self.prioritized_replay.TD=tf.concat(self.TD_list, axis=0)
+                            self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
@@ -1115,9 +1113,7 @@ class RL:
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
                         if self.PR==True:
-                            for i in range(processes):
-                                self.TD_list[i]=tf.Variable(self.TD_list[i])
-                            self.prioritized_replay.TD=tf.concat(self.TD_list, axis=0)
+                            self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
@@ -1189,9 +1185,7 @@ class RL:
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
                         if self.PR==True:
-                            for i in range(processes):
-                                self.TD_list[i]=tf.Variable(self.TD_list[i])
-                            self.prioritized_replay.TD=tf.concat(self.TD_list, axis=0)
+                            self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
