@@ -408,11 +408,11 @@ class RL_pytorch:
                 if type(self.state_pool_list[p])!=np.ndarray and self.state_pool_list[p]==None:
                     index=p
                 else:
-                    self.inverse_len[p]=1/len(self.state_pool_list[p])
                     inverse_len=np.array(self.inverse_len)
                     total_inverse=np.sum(inverse_len)
                     prob=inverse_len/total_inverse
                     index=np.random.choice(self.processes,p=prob)
+                    self.inverse_len[index]=1/len(self.state_pool_list[index])
             else:
                 index=p
             s=np.expand_dims(s,axis=0)
