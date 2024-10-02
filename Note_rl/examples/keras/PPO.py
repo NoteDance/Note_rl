@@ -61,5 +61,5 @@ class PPO(RL):
         return [tf.reduce_mean(clip_loss),tf.reduce_mean((TD)**2)]
     
     def update_param(self):
-        assign_param(self.actor.weights, self.actor.weights)
+        assign_param(self.actor_old.weights, self.actor.weights)
         return
