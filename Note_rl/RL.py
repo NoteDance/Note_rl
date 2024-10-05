@@ -385,19 +385,12 @@ class RL:
                     if isinstance(self.strategy,tf.distribute.MirroredStrategy):
                         train_ds=self.strategy.experimental_distribute_dataset(train_ds)
                         for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
-                            if self.distributed_flag==True:
-                                if self.jit_compile==True:
-                                    total_loss+=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                                else:
-                                    total_loss+=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                                num_batches += 1
-                                self.batch_counter+=1
+                            if self.jit_compile==True:
+                                total_loss+=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
                             else:
-                                if self.jit_compile==True:
-                                    self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
-                                else:
-                                    self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
-                                self.batch_counter+=1
+                                total_loss+=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
+                            num_batches += 1
+                            self.batch_counter+=1
                             if self.pool_network==True:
                                 if self.batch_counter%self.update_batches==0:
                                     self.update_param()
@@ -413,25 +406,33 @@ class RL:
                                 lambda input_context: self.dataset_fn(train_ds, self.global_batch_size, input_context))  
                         total_loss+=self.CTL(multi_worker_dataset)
                         num_batches += 1
+                    elif self.distributed_flag!=True:
+                        if self.jit_compile==True:
+                            self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
+                        else:
+                            self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
+                        self.batch_counter+=1
+                        if self.pool_network==True:
+                            if self.batch_counter%self.update_batches==0:
+                                self.update_param()
+                                if self.PPO:
+                                    self.state_pool=None
+                                    self.action_pool=None
+                                    self.next_state_pool=None
+                                    self.reward_pool=None
+                                    self.done_pool=None
                 if len(self.state_pool)%self.batch!=0:
                     state_batch,action_batch,next_state_batch,reward_batch,done_batch=self.data_func()
                     train_ds=tf.data.Dataset.from_tensor_slices((state_batch,action_batch,next_state_batch,reward_batch,done_batch)).batch(self.global_batch_size)
                     if isinstance(self.strategy,tf.distribute.MirroredStrategy):
                         train_ds=self.strategy.experimental_distribute_dataset(train_ds)
                         for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
-                            if self.distributed_flag==True:
-                                if self.jit_compile==True:
-                                    total_loss+=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                                else:
-                                    total_loss+=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                                num_batches += 1
-                                self.batch_counter+=1
+                            if self.jit_compile==True:
+                                total_loss+=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
                             else:
-                                if self.jit_compile==True:
-                                    self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
-                                else:
-                                    self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
-                                self.batch_counter+=1
+                                total_loss+=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
+                            num_batches += 1
+                            self.batch_counter+=1
                             if self.pool_network==True:
                                 if self.batch_counter%self.update_batches==0:
                                     self.update_param()
@@ -447,6 +448,21 @@ class RL:
                                 lambda input_context: self.dataset_fn(train_ds, self.global_batch_size, input_context))  
                         total_loss+=self.CTL(multi_worker_dataset)
                         num_batches += 1
+                    elif self.distributed_flag!=True:
+                        if self.jit_compile==True:
+                            self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
+                        else:
+                            self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
+                        self.batch_counter+=1
+                        if self.pool_network==True:
+                            if self.batch_counter%self.update_batches==0:
+                                self.update_param()
+                                if self.PPO:
+                                    self.state_pool=None
+                                    self.action_pool=None
+                                    self.next_state_pool=None
+                                    self.reward_pool=None
+                                    self.done_pool=None
             else:
                 if self.distributed_flag==True:
                     total_loss = 0.0
@@ -489,29 +505,22 @@ class RL:
                             train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.global_batch_size)
                     else:
                         train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.batch)
-                    if isinstance(self.strategy,tf.distribute.MirroredStrategy):
-                        train_ds=self.strategy.experimental_distribute_dataset(train_ds)
-                        for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
-                            if self.jit_compile==True:
-                                self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
-                            else:
-                                self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
-                            num_batches += 1
-                            self.batch_counter += 1
-                            if self.pool_network==True:
-                                if self.batch_counter%self.update_batches==0:
-                                    self.update_param()
-                                    if self.PPO:
-                                        self.state_pool=None
-                                        self.action_pool=None
-                                        self.next_state_pool=None
-                                        self.reward_pool=None
-                                        self.done_pool=None
-                    elif isinstance(self.strategy,tf.distribute.MultiWorkerMirroredStrategy):
-                        with self.strategy.scope():
-                            multi_worker_dataset = self.strategy.distribute_datasets_from_function(
-                                lambda input_context: self.dataset_fn(train_ds, self.global_batch_size, input_context))  
-                        total_loss,num_batches=self.CTL(multi_worker_dataset,math.ceil(len(self.state_pool)/self.global_batch_size))
+                    for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
+                        if self.jit_compile==True:
+                            self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
+                        else:
+                            self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
+                        num_batches += 1
+                        self.batch_counter += 1
+                        if self.pool_network==True:
+                            if self.batch_counter%self.update_batches==0:
+                                self.update_param()
+                                if self.PPO:
+                                    self.state_pool=None
+                                    self.action_pool=None
+                                    self.next_state_pool=None
+                                    self.reward_pool=None
+                                    self.done_pool=None
             if self.update_steps!=None:
                 if self.step_counter%self.update_steps==0:
                     self.update_param()
