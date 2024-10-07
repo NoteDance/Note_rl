@@ -36,10 +36,6 @@ model.train(train_loss, optimizer, 100)
 # model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200)
 # model.train(train_loss, optimizer, 100)
 
-# If use prioritized replay.
-# model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200,PR=True,initial_TD=7,alpha=0.7)
-# model.train(train_loss, optimizer, 100)
-
 # If save the model at intervals of 10 episode, with a maximum of 2 saved file, and the file name is model.dat.
 # model.path='model.dat'
 # model.save_freq=10
@@ -237,10 +233,6 @@ model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
 # model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200)
 # model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
 
-# If use prioritized replay.
-# model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200,PR=True,initial_TD=7,alpha=0.7)
-# model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
-
 # If save the model at intervals of 10 episode, with a maximum of 2 saved file, and the file name is model.dat.
 # model.path='model.dat'
 # model.save_freq=10
@@ -373,11 +365,6 @@ multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, 
 
 # If set criterion.
 # model.set(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200)
-# multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
-#                    pool_network=True, processes=7)
-
-# If use prioritized replay.
-# model.set(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200,PR=True,initial_TD=7,alpha=0.7)
 # multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
 #                    pool_network=True, processes=7)
 
