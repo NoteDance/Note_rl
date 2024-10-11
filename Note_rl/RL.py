@@ -656,20 +656,20 @@ class RL:
                 if self.PR==True and flag==False:
                     if self.prioritized_replay.TD is not None:
                         if index==0:
-                            self.TD_list[index]=self.prioritized_replay.TD[0:len(self.state_pool_list[index])]
+                            self.TD_list[index]=self.prioritized_replay.TD[0:len(self.TD_list[index])]
                         else:
                             index1=0
                             index2=0
                             for i in range(index):
-                                index1+=len(self.state_pool_list[i])
-                            index2=index1+len(self.state_pool_list[index])
+                                index1+=len(self.TD_list[i])
+                            index2=index1+len(self.TD_list[index])
                             self.TD_list[index]=self.prioritized_replay.TD[index1-1:index2]
                         flag=True
                 self.pool(s,a,next_s,r,done,index)
                 if self.PR==True:
-                    if len(self.state_pool_list[index])>1:
+                    if len(self.TD_list[index])>1:
                         self.TD_list[index]=np.append(self.TD_list[index],self.initial_TD)
-                    if len(self.state_pool_list[index])>math.ceil(self.pool_size/self.processes):
+                    if len(self.TD_list[index])>math.ceil(self.pool_size/self.processes):
                         self.TD_list[index]=self.TD_list[index][1:]
                 self.step_counter.value+=1
             if self.MA==True:
