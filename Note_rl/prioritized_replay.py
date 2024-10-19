@@ -31,16 +31,14 @@ class pr_:
     
     
     def sample(self,state_pool,action_pool,next_state_pool,reward_pool,done_pool,epsilon,alpha,batch):
-        p=(self.TD+epsilon)**alpha/tf.reduce_sum((self.TD+epsilon)**alpha)
+        p=(self.TD+epsilon)**alpha/np.sum((self.TD+epsilon)**alpha)
         self.index=np.random.choice(np.arange(len(state_pool)),size=[batch],p=p)
         return state_pool[self.index],action_pool[self.index],next_state_pool[self.index],reward_pool[self.index],done_pool[self.index]
     
     
     def update_TD(self,TD):
         if self.pool_network==True:
-            for i in range(len(self.index)):
-                self.TD[7][self.index[i]]=TD[i]
+            self.TD[7][self.index]=TD
         else:
-            for i in range(len(self.index)):
-                self.TD[self.index[i]]=TD[i]
+            self.TD[self.index]=TD
         return
