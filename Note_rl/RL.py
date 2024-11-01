@@ -526,6 +526,7 @@ class RL:
             r=np.array(r)
             done=np.array(done)
             self.pool(s,a,next_s,r,done)
+            self.step_counter+=1
             if self.PR==True:
                 if len(self.state_pool)>1:
                     self.prioritized_replay.TD=np.append(self.prioritized_replay.TD,self.initial_TD)
@@ -537,7 +538,6 @@ class RL:
             if self.PR==True:
                 self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
             loss=self.train1(train_loss,optimizer)
-            self.step_counter+=1
             if done:
                 self.reward_list.append(self.reward)
                 if len(self.reward_list)>self.trial_count:
@@ -732,6 +732,7 @@ class RL:
                         process_list.append(process)
                     for process in process_list:
                         process.join()
+                    self.step_counter+=1
                     if processes_her==None and processes_pr==None:
                         self.state_pool=np.concatenate(self.state_pool_list)
                         self.action_pool=np.concatenate(self.action_pool_list)
@@ -750,7 +751,6 @@ class RL:
                     if len(self.reward_list)>self.trial_count:
                         del self.reward_list[0]
                     loss=self.train1(train_loss, self.optimizer_)
-                    self.step_counter+=1
                 else:
                     loss=self.train2(train_loss,self.optimizer_)
                 self.loss=loss
@@ -801,6 +801,7 @@ class RL:
                         process_list.append(process)
                     for process in process_list:
                         process.join()
+                    self.step_counter+=1
                     if processes_her==None and processes_pr==None:
                         self.state_pool=np.concatenate(self.state_pool_list)
                         self.action_pool=np.concatenate(self.action_pool_list)
@@ -819,7 +820,6 @@ class RL:
                     if len(self.reward_list)>self.trial_count:
                         del self.reward_list[0]
                     loss=self.train1(train_loss, self.optimizer_)
-                    self.step_counter+=1
                 else:
                     loss=self.train2(train_loss,self.optimizer_)
                 self.loss=loss
@@ -956,6 +956,7 @@ class RL:
                             process_list.append(process)
                         for process in process_list:
                             process.join()
+                        self.step_counter+=1
                         if processes_her==None and processes_pr==None:
                             self.state_pool=np.concatenate(self.state_pool_list)
                             self.action_pool=np.concatenate(self.action_pool_list)
@@ -974,7 +975,6 @@ class RL:
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
                         loss=self.train1(None, self.optimizer_)
-                        self.step_counter+=1
                     else:
                         loss=self.train2(None,self.optimizer_)
                     self.loss=loss
@@ -1024,6 +1024,7 @@ class RL:
                             process_list.append(process)
                         for process in process_list:
                             process.join()
+                        self.step_counter+=1
                         if processes_her==None and processes_pr==None:
                             self.state_pool=np.concatenate(self.state_pool_list)
                             self.action_pool=np.concatenate(self.action_pool_list)
@@ -1042,7 +1043,6 @@ class RL:
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
                         loss=self.train1(None, self.optimizer_)
-                        self.step_counter+=1
                     else:
                         loss=self.train2(None,self.optimizer_)
                     self.loss=loss
@@ -1095,6 +1095,7 @@ class RL:
                             process_list.append(process)
                         for process in process_list:
                             process.join()
+                        self.step_counter+=1
                         if processes_her==None and processes_pr==None:
                             self.state_pool=np.concatenate(self.state_pool_list)
                             self.action_pool=np.concatenate(self.action_pool_list)
@@ -1113,7 +1114,6 @@ class RL:
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
                         loss=self.train1(None, self.optimizer_)
-                        self.step_counter+=1
                     else:
                         loss=self.train2(None,self.optimizer_)
                         
@@ -1169,6 +1169,7 @@ class RL:
                             process_list.append(process)
                         for process in process_list:
                             process.join()
+                        self.step_counter+=1
                         if processes_her==None and processes_pr==None:
                             self.state_pool=np.concatenate(self.state_pool_list)
                             self.action_pool=np.concatenate(self.action_pool_list)
@@ -1187,7 +1188,6 @@ class RL:
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
                         loss=self.train1(None, self.optimizer_)
-                        self.step_counter+=1
                     else:
                         loss=self.train2(None,self.optimizer_)
                         
