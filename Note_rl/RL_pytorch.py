@@ -2,7 +2,7 @@ from torch.utils.data import DataLoader
 import multiprocessing
 import Note_rl.policy as Policy
 import Note_rl.prioritized_replay.pr_ as pr
-from multiprocessing import Array,Value
+from multiprocessing import Array
 import numpy as np
 import numpy.ctypeslib as npc
 import matplotlib.pyplot as plt
@@ -103,16 +103,19 @@ class RL_pytorch:
     
     
     def select_action(self,s,i=None):
-        if self.MA!=True:
-            output=self.action(s).detach().numpy()
+        if self.jit_compile==True:
+            output=self.forward(s,i)
         else:
-            output=self.action(s,i).detach().numpy()
+            output=self.forward_(s,i)
         if self.policy!=None:
+            output=output.numpy()
             output=np.squeeze(output, axis=0)
             if isinstance(self.policy, Policy.SoftmaxPolicy):
                 a=self.policy.select_action(len(output), output)
             elif isinstance(self.policy, Policy.EpsGreedyQPolicy):
                 a=self.policy.select_action(output)
+            elif isinstance(self.policy, Policy.AdaptiveEpsGreedyPolicy):
+                a=self.policy.select_action(output, self.step_counter)
             elif isinstance(self.policy, Policy.GreedyQPolicy):
                 a=self.policy.select_action(output)
             elif isinstance(self.policy, Policy.BoltzmannQPolicy):
@@ -120,12 +123,9 @@ class RL_pytorch:
             elif isinstance(self.policy, Policy.MaxBoltzmannQPolicy):
                 a=self.policy.select_action(output)
             elif isinstance(self.policy, Policy.BoltzmannGumbelQPolicy):
-                if self.pool_network==True:
-                    a=self.policy.select_action(output, self.step_counter.value)
-                else:
-                    a=self.policy.select_action(output, self.step_counter)
+                a=self.policy.select_action(output, self.step_counter)
         elif self.noise!=None:
-            a=(output+self.noise.sample())
+            a=(output+self.noise.sample()).numpy()
         return a
     
     
@@ -310,6 +310,7 @@ class RL_pytorch:
             r=np.array(r)
             done=np.array(done)
             self.pool(s,a,next_s,r,done)
+            self.step_counter+=1
             if self.PR==True:
                 if len(self.state_pool)>1:
                     self.prioritized_replay.TD=np.append(self.prioritized_replay.TD,self.initial_TD)
@@ -319,7 +320,6 @@ class RL_pytorch:
                 r,done=self.reward_done_func_ma(r,done)
             self.reward=r+self.reward
             loss=self.train1(optimizer)
-            self.step_counter+=1
             if done:
                 self.reward_list.append(self.reward)
                 if len(self.reward_list)>self.trial_count:
@@ -417,7 +417,6 @@ class RL_pytorch:
             if self.PR!=True and self.HER!=True:
                 lock_list[index].acquire()
                 self.pool(s,a,next_s,r,done,index)
-                self.step_counter.value+=1
                 lock_list[index].release()
             else:
                 self.pool(s,a,next_s,r,done,index)
@@ -426,7 +425,6 @@ class RL_pytorch:
                         self.TD_list[index]=np.append(self.TD_list[index],self.initial_TD)
                     if len(self.TD_list[index])>math.ceil(self.pool_size/self.processes):
                         self.TD_list[index]=self.TD_list[index][1:]
-                self.step_counter.value+=1
             if self.MA==True:
                 r,done=self.reward_done_func_ma(r,done)
             self.reward[p]=r+self.reward[p]
@@ -472,7 +470,6 @@ class RL_pytorch:
                 self.done_pool_list.append(None)
             self.reward=np.zeros(processes,dtype='float32')
             self.reward=Array('f',self.reward)
-            self.step_counter=Value('i',0)
             if self.HER!=True:
                 lock_list=[mp.Lock() for _ in range(processes)]
             else:
@@ -512,6 +509,7 @@ class RL_pytorch:
                         process_list.append(process)
                     for process in process_list:
                         process.join()
+                    self.step_counter+=1
                     if processes_her==None and processes_pr==None:
                         self.state_pool=np.concatenate(self.state_pool_list)
                         self.action_pool=np.concatenate(self.action_pool_list)
@@ -578,6 +576,7 @@ class RL_pytorch:
                         process_list.append(process)
                     for process in process_list:
                         process.join()
+                    self.step_counter+=1
                     if processes_her==None and processes_pr==None:
                         self.state_pool=np.concatenate(self.state_pool_list)
                         self.action_pool=np.concatenate(self.action_pool_list)
