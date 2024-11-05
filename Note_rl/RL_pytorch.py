@@ -40,7 +40,7 @@ class RL_pytorch:
         self.total_time=0
     
     
-    def set(self,policy=None,noise=None,pool_size=None,batch=None,update_batches=None,update_steps=None,trial_count=None,criterion=None,PPO=False,HER=False,MA=False,PR=False,epsilon=None,initial_TD=7.,alpha=0.7):
+    def set(self,policy=None,noise=None,pool_size=None,batch=None,update_batches=None,update_steps=None,trial_count=None,criterion=None,PPO=False,HER=False,MA=False,PR=False,IRL=False,epsilon=None,initial_TD=7.,alpha=0.7):
         self.policy=policy
         self.noise=noise
         self.pool_size=pool_size
@@ -53,6 +53,7 @@ class RL_pytorch:
         self.HER=HER
         self.MA=MA
         self.PR=PR
+        self.IRL=IRL
         self.epsilon=epsilon
         self.initial_TD=initial_TD
         self.prioritized_replay.TD=initial_TD
@@ -108,7 +109,10 @@ class RL_pytorch:
         else:
             output=self.forward_(s,i)
         if self.policy!=None:
-            output=output.numpy()
+            if self.IRL!=True:
+                output=output.numpy()
+            else:
+                output=output[1].numpy()
             output=np.squeeze(output, axis=0)
             if isinstance(self.policy, Policy.SoftmaxPolicy):
                 a=self.policy.select_action(len(output), output)
@@ -125,8 +129,14 @@ class RL_pytorch:
             elif isinstance(self.policy, Policy.BoltzmannGumbelQPolicy):
                 a=self.policy.select_action(output, self.step_counter)
         elif self.noise!=None:
-            a=(output+self.noise.sample()).numpy()
-        return a
+            if self.IRL!=True:
+                a=(output+self.noise.sample()).numpy()
+            else:
+                a=(output[1]+self.noise.sample()).numpy()
+        if self.IRL!=True:
+            return a
+        else:
+            return [output[0],a]
     
     
     def env_(self,a=None,initial=None,p=None):
