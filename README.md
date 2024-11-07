@@ -97,7 +97,7 @@ from Note_rl.policy import SoftmaxPolicy
 from Note_rl.examples.keras.MADDPG import DDPG
 
 model=DDPG(128,0.1,0.98,0.005)
-model.set(policy=SoftmaxPolicy(),pool_size=3000,batch=32,trial_count=10,MA=True)
+model.set(policy=SoftmaxPolicy(),pool_size=3000,batch=32,trial_count=10,MARL=True)
 optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
 train_loss = tf.keras.metrics.Mean(name='train_loss')
 model.train(train_loss, optimizer, 100)
@@ -182,7 +182,7 @@ from Note_rl.policy import SoftmaxPolicy
 from Note_rl.examples.pytorch.MADDPG import DDPG
 
 model=DDPG(128,0.1,0.98,0.005)
-model.set(policy=SoftmaxPolicy(),pool_size=3000,batch=32,trial_count=10,MA=True)
+model.set(policy=SoftmaxPolicy(),pool_size=3000,batch=32,trial_count=10,MARL=True)
 optimizer = [torch.optim.Adam(model.param[0]),torch.optim.Adam(model.param[1])]
 model.train(optimizer, 100)
 ```
@@ -311,7 +311,7 @@ with strategy.scope():
   model=DDPG(128,0.1,0.98,0.005)
   optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
 
-model.set(policy=SoftmaxPolicy(),pool_size=3000,trial_count=10,MA=True)
+model.set(policy=SoftmaxPolicy(),pool_size=3000,trial_count=10,MARL=True)
 model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
 ```
 ```python
