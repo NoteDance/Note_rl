@@ -26,7 +26,7 @@ class RL:
         self.step_counter=0
         self.prioritized_replay=pr()
         self.seed=7
-        self.optimizer_=None
+        self.optimizer=None
         self.path=None
         self.save_freq=1
         self.save_freq_=None
@@ -308,9 +308,9 @@ class RL:
         
         if self.PR==True or self.HER==True:
             if self.jit_compile==True:
-                total_loss = self.distributed_train_step(next(iterator), self.optimizer_)
+                total_loss = self.distributed_train_step(next(iterator), self.optimizer)
             else:
-                total_loss = self.distributed_train_step_(next(iterator), self.optimizer_)
+                total_loss = self.distributed_train_step_(next(iterator), self.optimizer)
             self.batch_counter += 1
             if self.pool_network==True:
                 if self.batch_counter%self.update_batches==0:
@@ -325,9 +325,9 @@ class RL:
         else:
             while self.step_in_epoch < num_steps_per_episode:
               if self.jit_compile==True:
-                  total_loss += self.distributed_train_step(next(iterator), self.optimizer_)
+                  total_loss += self.distributed_train_step(next(iterator), self.optimizer)
               else:
-                  total_loss += self.distributed_train_step_(next(iterator), self.optimizer_)
+                  total_loss += self.distributed_train_step_(next(iterator), self.optimizer)
               num_batches += 1
               self.batch_counter += 1
               self.step_in_episode += 1
@@ -726,7 +726,7 @@ class RL:
                     self.reward_list.append(None)
                     self.done_list.append(None)
         self.distributed_flag=False
-        self.optimizer_=optimizer
+        self.optimizer=optimizer
         self.episodes=episodes
         self.jit_compile=jit_compile
         if episodes!=None:
@@ -759,9 +759,9 @@ class RL:
                     self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                     if len(self.reward_list)>self.trial_count:
                         del self.reward_list[0]
-                    loss=self.train1(train_loss, self.optimizer_)
+                    loss=self.train1(train_loss, self.optimizer)
                 else:
-                    loss=self.train2(train_loss,self.optimizer_)
+                    loss=self.train2(train_loss,self.optimizer)
                 self.loss=loss
                 self.loss_list.append(loss)
                 self.total_episode+=1
@@ -827,9 +827,9 @@ class RL:
                     self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                     if len(self.reward_list)>self.trial_count:
                         del self.reward_list[0]
-                    loss=self.train1(train_loss, self.optimizer_)
+                    loss=self.train1(train_loss, self.optimizer)
                 else:
-                    loss=self.train2(train_loss,self.optimizer_)
+                    loss=self.train2(train_loss,self.optimizer)
                 self.loss=loss
                 self.loss_list.append(loss)
                 i+=1
@@ -875,7 +875,7 @@ class RL:
         return
     
     
-    def distributed_training(self, global_batch_size, optimizer, strategy, episodes=None, num_episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, shuffle=False, p=None):
+    def distributed_training(self, optimizer, strategy, episodes=None, num_episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, shuffle=False, p=None):
         avg_reward=None
         if num_episodes!=None:
             episodes=num_episodes
@@ -891,7 +891,6 @@ class RL:
             p=int(p)
         if p==0:
             p=1
-        self.jit_compile=jit_compile
         self.pool_network=pool_network
         self.processes=processes
         self.processes_her=processes_her
@@ -942,15 +941,13 @@ class RL:
                     self.reward_list.append(None)
                     self.done_list.append(None)
         self.distributed_flag=True
-        self.global_batch_size=global_batch_size
-        self.batch=global_batch_size
-        self.optimizer_=optimizer
+        self.optimizer=optimizer
         self.strategy=strategy
         self.episodes=episodes
         self.jit_compile=jit_compile
         with strategy.scope():
             def compute_loss(self, per_example_loss):
-                return tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+                return tf.nn.compute_average_loss(per_example_loss, global_batch_size=self.batch)
         if isinstance(strategy,tf.distribute.MirroredStrategy):
             if episodes!=None:
                 for i in range(episodes):
@@ -981,9 +978,9 @@ class RL:
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
-                        loss=self.train1(None, self.optimizer_)
+                        loss=self.train1(None, self.optimizer)
                     else:
-                        loss=self.train2(None,self.optimizer_)
+                        loss=self.train2(None,self.optimizer)
                     self.loss=loss
                     self.loss_list.append(loss)
                     self.total_episode+=1
@@ -1048,9 +1045,9 @@ class RL:
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
-                        loss=self.train1(None, self.optimizer_)
+                        loss=self.train1(None, self.optimizer)
                     else:
-                        loss=self.train2(None,self.optimizer_)
+                        loss=self.train2(None,self.optimizer)
                     self.loss=loss
                     self.loss_list.append(loss)
                     i+=1
@@ -1118,9 +1115,9 @@ class RL:
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
-                        loss=self.train1(None, self.optimizer_)
+                        loss=self.train1(None, self.optimizer)
                     else:
-                        loss=self.train2(None,self.optimizer_)
+                        loss=self.train2(None,self.optimizer)
                         
                     if self.path!=None and episode%self.save_freq==0:
                         if self.save_param_only==False:
@@ -1191,9 +1188,9 @@ class RL:
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
                         if len(self.reward_list)>self.trial_count:
                             del self.reward_list[0]
-                        loss=self.train1(None, self.optimizer_)
+                        loss=self.train1(None, self.optimizer)
                     else:
-                        loss=self.train2(None,self.optimizer_)
+                        loss=self.train2(None,self.optimizer)
                         
                     if self.path!=None and episode%self.save_freq==0:
                         if self.save_param_only==False:
