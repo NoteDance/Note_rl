@@ -230,26 +230,26 @@ model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10
 model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
 
 # If set criterion.
-# model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200)
-# model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
+# model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=GLOBAL_BATCH_SIZE,update_steps=10,trial_count=10,criterion=200)
+# model.distributed_training(optimizer, strategy, 100)
 
 # If save the model at intervals of 10 episode, with a maximum of 2 saved file, and the file name is model.dat.
 # model.path='model.dat'
 # model.save_freq=10
 # model. max_save_files=2
-# model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
+# model.distributed_training(optimizer, strategy, 100)
 
 # If save parameters only
 # model.path='param.dat'
 # model.save_freq=10
 # model. max_save_files=2
 # model.save_param_only=True
-# model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
+# model.distributed_training(optimizer, strategy, 100)
 
 # If save best only
 # model.path='model.dat'
 # model.save_best_only=True
-# model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
+# model.distributed_training(optimizer, strategy, 100)
 
 # visualize
 # model.visualize_loss()
@@ -277,8 +277,8 @@ with strategy.scope():
   model=PPO(4,128,2,0.7,0.7)
   optimizer = [tf.keras.optimizers.Adam(1e-4),tf.keras.optimizers.Adam(5e-3)]
 
-model.set(policy=SoftmaxPolicy(),pool_size=10000,update_steps=1000,PPO=True)
-model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
+model.set(policy=SoftmaxPolicy(),pool_size=10000,batch=GLOBAL_BATCH_SIZE,update_steps=1000,PPO=True)
+model.distributed_training(optimizer, strategy, 100)
 ```
 ```python
 # Use HER.
@@ -294,8 +294,8 @@ with strategy.scope():
   model=DDPG(128,0.1,0.98,0.005)
   optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
 
-model.set(noise=GaussianWhiteNoiseProcess(),pool_size=10000,criterion=-5,trial_count=10,HER=True)
-model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 2000)
+model.set(noise=GaussianWhiteNoiseProcess(),pool_size=10000,batch=GLOBAL_BATCH_SIZE,criterion=-5,trial_count=10,HER=True)
+model.distributed_training(optimizer, strategy, 2000)
 ```
 ```python
 # Use Multi-agent reinforcement learning.
@@ -311,8 +311,8 @@ with strategy.scope():
   model=DDPG(128,0.1,0.98,0.005)
   optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
 
-model.set(policy=SoftmaxPolicy(),pool_size=3000,trial_count=10,MARL=True)
-model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
+model.set(policy=SoftmaxPolicy(),pool_size=3000,batch=GLOBAL_BATCH_SIZE,trial_count=10,MARL=True)
+model.distributed_training(optimizer, strategy, 100)
 ```
 ```python
 # This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
@@ -327,8 +327,8 @@ GLOBAL_BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
 with strategy.scope():
   model=DQN(4,128,2,7)
   optimizer = tf.keras.optimizers.Adam()
-model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,update_batches=17)
-model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100, pool_network=True, processes=7)
+model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=GLOBAL_BATCH_SIZE,update_batches=17)
+model.distributed_training(optimizer, strategy, 100, pool_network=True, processes=7)
 ```
 ## MultiWorkerMirroredStrategy:
 ```python
@@ -359,20 +359,20 @@ with strategy.scope():
   multi_worker_model = DQN(4,128,2)
   optimizer = tf.keras.optimizers.Adam()
 
-multi_worker_model.set(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_batches=17)
-multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
+multi_worker_model.set(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=global_batch_size,update_batches=17)
+multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
                     pool_network=True, processes=7)
 
 # If set criterion.
-# model.set(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200)
-# multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
+# model.set(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=global_batch_size,update_steps=10,trial_count=10,criterion=200)
+# multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
 #                    pool_network=True, processes=7)
 
 # If save the model at intervals of 10 episode, with a maximum of 2 saved file, and the file name is model.dat.
 # model.path='model.dat'
 # model.save_freq=10
 # model. max_save_files=2
-# multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
+# multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
 #                    pool_network=True, processes=7)
 
 # If save parameters only
@@ -380,13 +380,13 @@ multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, 
 # model.save_freq=10
 # model. max_save_files=2
 # model.save_param_only=True
-# multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
+# multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
 #                    pool_network=True, processes=7)
 
 # If save best only
 # model.path='model.dat'
 # model.save_best_only=True
-# multi_worker_model.distributed_training(global_batch_size, optimizer, strategy, num_episodes=100,
+# multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
 #                    pool_network=True, processes=7)
 
 # visualize
