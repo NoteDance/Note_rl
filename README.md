@@ -19,7 +19,7 @@ matplotlib>=3.8.4
 python>=3.10
 
 # Train:
-## Keras:
+**Keras:**
 Agent built with Keras.
 ```python
 import tensorflow as tf
@@ -30,29 +30,29 @@ model=DQN(4,128,2)
 model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10)
 optimizer = tf.keras.optimizers.Adam()
 train_loss = tf.keras.metrics.Mean(name='train_loss')
-model.train(train_loss, optimizer, 100)
+model.train(train_loss, optimizer, 100, pool_network=False)
 
 # If set criterion.
 # model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200)
-# model.train(train_loss, optimizer, 100)
+# model.train(train_loss, optimizer, 100, pool_network=False)
 
 # If save the model at intervals of 10 episode, with a maximum of 2 saved file, and the file name is model.dat.
 # model.path='model.dat'
 # model.save_freq=10
 # model. max_save_files=2
-# model.train(train_loss, optimizer, 100)
+# model.train(train_loss, optimizer, 100, pool_network=False)
 
 # If save parameters only
 # model.path='param.dat'
 # model.save_freq=10
 # model. max_save_files=2
 # model.save_param_only=True
-# model.train(train_loss, optimizer, 100)
+# model.train(train_loss, optimizer, 100, pool_network=False)
 
 # If save best only
 # model.path='model.dat'
 # model.save_best_only=True
-# model.train(train_loss, optimizer, 100)
+# model.train(train_loss, optimizer, 100, pool_network=False)
 
 # visualize
 # model.visualize_loss()
@@ -76,7 +76,7 @@ model=PPO(4,128,2,0.7,0.7)
 model.set(policy=SoftmaxPolicy(),pool_size=10000,batch=64,update_steps=1000,PPO=True)
 optimizer = [tf.keras.optimizers.Adam(1e-4),tf.keras.optimizers.Adam(5e-3)]
 train_loss = tf.keras.metrics.Mean(name='train_loss')
-model.train(train_loss, optimizer, 100)
+model.train(train_loss, optimizer, 100, pool_network=False)
 ```
 ```python
 # Use HER.
@@ -88,7 +88,7 @@ model=DDPG(128,0.1,0.98,0.005)
 model.set(noise=GaussianWhiteNoiseProcess(),pool_size=10000,batch=256,criterion=-5,trial_count=10,HER=True)
 optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
 train_loss = tf.keras.metrics.Mean(name='train_loss')
-model.train(train_loss, optimizer, 2000)
+model.train(train_loss, optimizer, 2000, pool_network=False)
 ```
 ```python
 # Use Multi-agent reinforcement learning.
@@ -100,7 +100,7 @@ model=DDPG(128,0.1,0.98,0.005)
 model.set(policy=SoftmaxPolicy(),pool_size=3000,batch=32,trial_count=10,MARL=True)
 optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
 train_loss = tf.keras.metrics.Mean(name='train_loss')
-model.train(train_loss, optimizer, 100)
+model.train(train_loss, optimizer, 100, pool_network=False)
 ```
 ```python
 # This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
@@ -114,7 +114,7 @@ optimizer = tf.keras.optimizers.Adam()
 train_loss = tf.keras.metrics.Mean(name='train_loss')
 model.train(train_loss, optimizer, 100, pool_network=True, processes=7)
 ```
-## PyTorch:
+**PyTorch:**
 Agent built with PyTorch.
 ```python
 import torch
@@ -212,7 +212,7 @@ model.train(train_loss, optimizer, 2000, pool_network=True, processes=7, process
 ```
 
 # Distributed training:
-## MirroredStrategy:
+**MirroredStrategy:**
 Agent built with Keras.
 ```python
 import tensorflow as tf
@@ -227,29 +227,29 @@ with strategy.scope():
   model=DQN(4,128,2)
   optimizer = tf.keras.optimizers.Adam()
 model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10)
-model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100)
+model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100, pool_network=False)
 
 # If set criterion.
 # model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=GLOBAL_BATCH_SIZE,update_steps=10,trial_count=10,criterion=200)
-# model.distributed_training(optimizer, strategy, 100)
+# model.distributed_training(optimizer, strategy, 100, pool_network=False)
 
 # If save the model at intervals of 10 episode, with a maximum of 2 saved file, and the file name is model.dat.
 # model.path='model.dat'
 # model.save_freq=10
 # model. max_save_files=2
-# model.distributed_training(optimizer, strategy, 100)
+# model.distributed_training(optimizer, strategy, 100, pool_network=False)
 
 # If save parameters only
 # model.path='param.dat'
 # model.save_freq=10
 # model. max_save_files=2
 # model.save_param_only=True
-# model.distributed_training(optimizer, strategy, 100)
+# model.distributed_training(optimizer, strategy, 100, pool_network=False)
 
 # If save best only
 # model.path='model.dat'
 # model.save_best_only=True
-# model.distributed_training(optimizer, strategy, 100)
+# model.distributed_training(optimizer, strategy, 100, pool_network=False)
 
 # visualize
 # model.visualize_loss()
@@ -278,7 +278,7 @@ with strategy.scope():
   optimizer = [tf.keras.optimizers.Adam(1e-4),tf.keras.optimizers.Adam(5e-3)]
 
 model.set(policy=SoftmaxPolicy(),pool_size=10000,batch=GLOBAL_BATCH_SIZE,update_steps=1000,PPO=True)
-model.distributed_training(optimizer, strategy, 100)
+model.distributed_training(optimizer, strategy, 100, pool_network=False)
 ```
 ```python
 # Use HER.
@@ -295,7 +295,7 @@ with strategy.scope():
   optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
 
 model.set(noise=GaussianWhiteNoiseProcess(),pool_size=10000,batch=GLOBAL_BATCH_SIZE,criterion=-5,trial_count=10,HER=True)
-model.distributed_training(optimizer, strategy, 2000)
+model.distributed_training(optimizer, strategy, 2000, pool_network=False)
 ```
 ```python
 # Use Multi-agent reinforcement learning.
@@ -312,7 +312,7 @@ with strategy.scope():
   optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
 
 model.set(policy=SoftmaxPolicy(),pool_size=3000,batch=GLOBAL_BATCH_SIZE,trial_count=10,MARL=True)
-model.distributed_training(optimizer, strategy, 100)
+model.distributed_training(optimizer, strategy, 100, pool_network=False)
 ```
 ```python
 # This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
@@ -330,7 +330,7 @@ with strategy.scope():
 model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=GLOBAL_BATCH_SIZE,update_batches=17)
 model.distributed_training(optimizer, strategy, 100, pool_network=True, processes=7)
 ```
-## MultiWorkerMirroredStrategy:
+**MultiWorkerMirroredStrategy:**
 ```python
 import tensorflow as tf
 from Note.RL import rl
