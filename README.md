@@ -333,7 +333,7 @@ model.distributed_training(optimizer, strategy, 100, pool_network=True, processe
 **MultiWorkerMirroredStrategy:**
 ```python
 import tensorflow as tf
-from Note.RL import rl
+from Note_rl.policy import EpsGreedyQPolicy
 from Note_rl.examples.keras.pool_network.DQN import DQN
 import sys
 import os
@@ -359,12 +359,12 @@ with strategy.scope():
   multi_worker_model = DQN(4,128,2)
   optimizer = tf.keras.optimizers.Adam()
 
-multi_worker_model.set(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=global_batch_size,update_batches=17)
+multi_worker_model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=global_batch_size,update_batches=17)
 multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
                     pool_network=True, processes=7)
 
 # If set criterion.
-# model.set(policy=rl.EpsGreedyQPolicy(0.01),pool_size=10000,batch=global_batch_size,update_steps=10,trial_count=10,criterion=200)
+# model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=global_batch_size,update_steps=10,trial_count=10,criterion=200)
 # multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
 #                    pool_network=True, processes=7)
 
@@ -400,4 +400,68 @@ multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
 # save
 # model.save_param('param.dat')
 # model.save('model.dat')
+```
+
+# LRFinder:
+**Usage:**
+
+Create a Note_rl agent, then execute this code:
+```python
+from Note_rl.lr_finder import LRFinder
+# agent is a Note_rl agent
+agent.optimizer = tf.keras.optimizers.Adam()
+lr_finder = LRFinder(agent)
+
+# Train a agent with 77 episodes
+# with learning rate growing exponentially from 0.0001 to 1
+# N: Total number of iterations (or mini-batch steps) over which the learning rate is increased.
+#    This parameter determines how many updates occur between the starting learning rate (start_lr)
+#    and the ending learning rate (end_lr). The learning rate is increased exponentially by a fixed
+#    multiplicative factor computed as:
+#         factor = (end_lr / start_lr) ** (1.0 / N)
+#    This ensures that after N updates, the learning rate will reach exactly end_lr.
+#
+# window_size: The size of the sliding window (i.e., the number of most recent episodes)
+#              used to compute the moving average and standard deviation of the rewards.
+#              This normalization helps smooth out the reward signal and adjust for the fact that
+#              early episodes may have lower rewards (due to limited experience) compared to later ones.
+#              By using only the recent window_size rewards, we obtain a more stable and current estimate
+#              of the reward statistics for normalization.
+lr_finder.find(train_loss, pool_network=False, N=77, window_size=7, start_lr=0.0001, end_lr=1, episodes=77)
+```
+or
+```python
+from Note_rl.lr_finder import LRFinder
+# agent is a Note_rl agent
+agent.optimizer = tf.keras.optimizers.Adam()
+strategy = tf.distribute.MirroredStrategy()
+lr_finder = LRFinder(agent)
+
+# Train a agent with 77 episodes
+# with learning rate growing exponentially from 0.0001 to 1
+# N: Total number of iterations (or mini-batch steps) over which the learning rate is increased.
+#    This parameter determines how many updates occur between the starting learning rate (start_lr)
+#    and the ending learning rate (end_lr). The learning rate is increased exponentially by a fixed
+#    multiplicative factor computed as:
+#         factor = (end_lr / start_lr) ** (1.0 / N)
+#    This ensures that after N updates, the learning rate will reach exactly end_lr.
+#
+# window_size: The size of the sliding window (i.e., the number of most recent episodes)
+#              used to compute the moving average and standard deviation of the rewards.
+#              This normalization helps smooth out the reward signal and adjust for the fact that
+#              early episodes may have lower rewards (due to limited experience) compared to later ones.
+#              By using only the recent window_size rewards, we obtain a more stable and current estimate
+#              of the reward statistics for normalization.
+lr_finder.find(pool_network=False, strategy=strategy, N=77, window_size=7, start_lr=0.0001, end_lr=1, episodes=77)
+```
+```python
+# Plot the reward, ignore 20 batches in the beginning and 5 in the end
+lr_finder.plot_reward(n_skip_beginning=20, n_skip_end=5)
+```
+```python
+# Plot rate of change of the reward
+# Ignore 20 batches in the beginning and 5 in the end
+# Smooth the curve using simple moving average of 20 batches
+# Limit the range for y axis to (-0.02, 0.01)
+lr_finder.plot_reward_change(sma=20, n_skip_beginning=20, n_skip_end=5, y_lim=(-0.01, 0.01))
 ```
