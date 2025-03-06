@@ -465,3 +465,28 @@ lr_finder.plot_reward(n_skip_beginning=20, n_skip_end=5)
 # Limit the range for y axis to (-0.02, 0.01)
 lr_finder.plot_reward_change(sma=20, n_skip_beginning=20, n_skip_end=5, y_lim=(-0.01, 0.01))
 ```
+
+# OptFinder_rl:
+**Usage:**
+
+Create a Note agent, then execute this code:
+```python
+from Note import nn
+# agent is a Note agent
+optimizers = [tf.keras.optimizers.Adam(), tf.keras.optimizers.AdamW(), tf.keras.optimizers.Adamax()]
+opt_finder = nn.OptFinder_rl(agent, optimizers)
+
+# Train a agent with 7 episodes
+opt_finder.find(train_loss, pool_network=False, episodes=7)
+```
+or
+```python
+from Note import nn
+# agent is a Note agent
+optimizers = [tf.keras.optimizers.Adam(), tf.keras.optimizers.AdamW(), tf.keras.optimizers.Adamax()]
+strategy = tf.distribute.MirroredStrategy()
+opt_finder = nn.OptFinder_rl(agent, optimizers)
+
+# Train a agent with 7 episodes
+opt_finder.find(pool_network=False, strategy=strategy, episodes=7)
+```
