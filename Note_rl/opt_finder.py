@@ -11,8 +11,8 @@ class OptFinder:
         self.optimizers = optimizers
         self.rewards = []
         self.losses = []
-        self.normalized_rewards = []
-        self.mean_loss = []
+        self.mean_rewards = []
+        self.mean_losses = []
         self.best_reward = -1e9
         self.best_loss = 1e9
             
@@ -20,14 +20,11 @@ class OptFinder:
         reward = logs['reward']
         self.rewards.append(reward)
         
-        recent_rewards = self.rewards
-        mean_reward = np.mean(recent_rewards)
-        std_reward = np.std(recent_rewards) + 1e-8
-        normalized_reward = (reward - mean_reward) / std_reward
-        self.normalized_rewards.append(normalized_reward)
-        if normalized_reward > self.best_reward:
+        mean_reward = np.mean(self.rewards)
+        self.mean_rewards.append(mean_reward)
+        if mean_reward > self.best_reward:
             self.best_opt = self.model.optimizer
-            self.best_reward = normalized_reward
+            self.best_reward = mean_reward
     
     def on_episode_end_(self, episode, logs):
         loss = logs['loss']
@@ -69,7 +66,7 @@ class OptFinder:
                                processes_pr=processes_her,
                                callbacks=[callback],
                                jit_compile=jit_compile)
-                
+            
             if metrics == 'reward':
                 self.rewards.clear()
             else:
@@ -83,9 +80,9 @@ class OptFinder:
         
     def plot_reward(self, x_scale='linear'):
         plt.ylabel("Reward")
-        x_values = list(range(len(self.normalized_rewards)))
+        x_values = list(range(len(self.mean_rewards)))
         plt.xlabel("Optimizer Index")
-        plt.plot(x_values, self.normalized_rewards)
+        plt.plot(x_values, self.mean_rewards)
         plt.xscale(x_scale)
         plt.show()
     
@@ -103,10 +100,10 @@ class OptFinder:
     
     def get_derivatives(self, sma):
         assert sma >= 1
-        n = len(self.normalized_rewards)
+        n = len(self.mean_rewards)
         derivatives = [0] * sma
         for i in range(sma, n):
-            derivatives.append((self.normalized_rewards[i] - self.normalized_rewards[i - sma]) / sma)
+            derivatives.append((self.mean_rewards[i] - self.mean_rewards[i - sma]) / sma)
         return derivatives
     
     def plot_loss(self, x_scale='linear'):
