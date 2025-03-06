@@ -5,7 +5,7 @@ from tensorflow.python.util import nest
 import numpy as np
 
 
-class OptFinder_rl:
+class OptFinder:
     def __init__(self, agent, optimizers):
         self.agent = agent
         self.optimizers = optimizers
