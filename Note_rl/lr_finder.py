@@ -83,7 +83,7 @@ class LRFinder:
         self.factor = (end_lr / start_lr) ** (1.0 / N)
         self.window_size = window_size
         # Save weights into a file
-        initial_weights = [tf.Variable(param.read_value()) for param in nest.flatten(self.model.param)]
+        initial_weights = [tf.Variable(param.read_value()) for param in nest.flatten(self.agent.param)]
 
         # Remember the original learning rate
         if type(self.agent.optimizer)!=list:
