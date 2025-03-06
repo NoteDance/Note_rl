@@ -28,8 +28,6 @@ class OptFinder:
         if normalized_reward > self.best_reward:
             self.best_opt = self.model.optimizer
             self.best_reward = normalized_reward
-            
-        self.rewards.clear()
     
     def on_episode_end_(self, episode, logs):
         loss = logs['loss']
@@ -40,8 +38,6 @@ class OptFinder:
         if mean_loss < self.best_loss:
             self.best_opt = self.model.optimizer
             self.best_loss = mean_loss
-        
-        self.losses.clear()
 
     def find(self, train_loss=None, pool_network=True, processes=None, processes_her=None, processes_pr=None, strategy=None, episodes=1, metrics='reward', jit_compile=True):
         # Save weights into a file
@@ -73,6 +69,11 @@ class OptFinder:
                                processes_pr=processes_her,
                                callbacks=[callback],
                                jit_compile=jit_compile)
+                
+            if metrics == 'reward':
+                self.rewards.clear()
+            else:
+                self.losses.clear()
 
             # Restore the weights to the state before model fitting
             nn.assign_param(self.agent.param, initial_weights)
