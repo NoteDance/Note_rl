@@ -24,7 +24,7 @@ class OptFinder:
             mean_reward = np.mean(self.rewards)
             self.mean_rewards.append(mean_reward)
             if mean_reward > self.best_reward:
-                self.best_opt = self.model.optimizer
+                self.best_opt = self.agent.optimizer
                 self.best_reward = mean_reward
     
     def on_episode_end_(self, episode, logs):
@@ -35,7 +35,7 @@ class OptFinder:
             mean_loss = np.mean(self.losses)
             self.mean_losses.append(mean_loss)
             if mean_loss < self.best_loss:
-                self.best_opt = self.model.optimizer
+                self.best_opt = self.agent.optimizer
                 self.best_loss = mean_loss
 
     def find(self, train_loss=None, pool_network=True, processes=None, processes_her=None, processes_pr=None, strategy=None, episodes=1, metrics='reward', jit_compile=True):
@@ -50,10 +50,10 @@ class OptFinder:
             callback = nn.LambdaCallback(on_episode_end=lambda episode, logs: self.on_episode_end_(episode, logs))
         
         for opt in self.optimizers:
-            self.model.optimizer = opt
+            self.agent.optimizer = opt
             
             if strategy == None:
-                self.model.train(train_loss=train_loss, 
+                self.agent.train(train_loss=train_loss, 
                                episodes=episodes,
                                pool_network=pool_network,
                                processes=processes,
@@ -62,7 +62,7 @@ class OptFinder:
                                callbacks=[callback],
                                jit_compile=jit_compile)
             else:
-                self.model.distributed_training(strategy=strategy,
+                self.agent.distributed_training(strategy=strategy,
                                episodes=episodes,
                                pool_network=pool_network,
                                processes=processes,
@@ -71,15 +71,44 @@ class OptFinder:
                                callbacks=[callback],
                                jit_compile=jit_compile)
             
+            if pool_network==True:
+                for i in range(processes):
+                    self.agent.state_pool_list[i] = None
+                    self.agent.action_pool_list[i] = None
+                    self.agent.next_state_pool_list[i] = None
+                    self.agent.reward_pool_list[i] = None
+                    self.agent.done_pool_list[i] = None
+                if processes_her!=None or processes_pr!=None:
+                    if processes_her!=None:
+                        for i in range(processes_her):
+                            self.agent.state_list[i] = None
+                            self.agent.action_list[i] = None
+                            self.agent.next_state_list[i] = None
+                            self.agent.reward_list[i] = None
+                            self.agent.done_list[i] = None
+                    else:
+                        for i in range(processes_pr):
+                            self.agent.state_list[i] = None
+                            self.agent.action_list[i] = None
+                            self.agent.next_state_list[i] = None
+                            self.agent.reward_list[i] = None
+                            self.agent.done_list[i] = None
+            else:
+                self.agent.state_pool = None
+                self.agent.action_pool = None
+                self.agent.next_state_pool = None
+                self.agent.reward_pool = None
+                self.agent.done_pool = None
+                
             if metrics == 'reward':
                 self.rewards.clear()
             else:
                 self.losses.clear()
 
-            # Restore the weights to the state before model fitting
+            # Restore the weights to the state before agent fitting
             nn.assign_param(self.agent.param, initial_weights)
 
-        # Restore the weights to the state before model fitting
+        # Restore the weights to the state before agent fitting
         nn.assign_param(self.agent.param, initial_weights)
         
     def plot_reward(self, x_scale='linear'):
