@@ -78,6 +78,13 @@ class RL:
                 self.next_state_pool_list[index]=np.concatenate((self.next_state_pool_list[index],np.expand_dims(next_s,axis=0)),0)
                 self.reward_pool_list[index]=np.concatenate((self.reward_pool_list[index],np.expand_dims(r,axis=0)),0)
                 self.done_pool_list[index]=np.concatenate((self.done_pool[7],np.expand_dims(done,axis=0)),0)
+            if self.clearing_freq!=None and self.total_episode+1%self.clearing_freq==0:
+                if self.window_size_<len(self.state_pool_list[index]):
+                    self.state_pool_list[index]=self.state_pool_list[index][self.window_size_:]
+                    self.action_pool_list[index]=self.action_pool_list[index][self.window_size_:]
+                    self.next_state_pool_list[index]=self.next_state_pool_list[index][self.window_size_:]
+                    self.reward_pool_list[index]=self.reward_pool_list[index][self.window_size_:]
+                    self.done_pool_list[index]=self.done_pool_list[index][self.window_size_:]
             if len(self.state_pool_list[index])>math.ceil(self.pool_size/self.processes):
                 if self.window_size==None:
                     self.state_pool_list[index]=self.state_pool_list[index][1:]
@@ -104,6 +111,12 @@ class RL:
                 self.next_state_pool=np.concatenate((self.next_state_pool,np.expand_dims(next_s,axis=0)),0)
                 self.reward_pool=np.concatenate((self.reward_pool,np.expand_dims(r,axis=0)),0)
                 self.done_pool=np.concatenate((self.done_pool,np.expand_dims(done,axis=0)),0)
+            if self.clearing_freq!=None and self.total_episode+1%self.clearing_freq==0:
+                self.state_pool=self.state_pool[self.window_size_:]
+                self.action_pool=self.action_pool[self.window_size_:]
+                self.next_state_pool=self.next_state_pool[self.window_size_:]
+                self.reward_pool=self.reward_pool[self.window_size_:]
+                self.done_pool=self.done_pool[self.window_size_:]
             if len(self.state_pool)>self.pool_size:
                 if self.window_size==None:
                     self.state_pool=self.state_pool[1:]
@@ -750,7 +763,7 @@ class RL:
             s=next_s
     
     
-    def train(self, train_loss, optimizer, episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, save_data=True, shuffle=False, p=None):
+    def train(self, train_loss, optimizer, episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, save_data=True, shuffle=False, p=None):
         avg_reward=None
         if p==None:
             self.p=9
@@ -774,6 +787,8 @@ class RL:
         self.processes_her=processes_her
         self.processes_pr=processes_pr
         self.window_size=window_size
+        self.clearing_freq=clearing_freq
+        self.window_size_=window_size_
         self.save_data=save_data
         self.shuffle=shuffle
         if pool_network==True:
@@ -998,7 +1013,7 @@ class RL:
         return
     
     
-    def distributed_training(self, optimizer, strategy, episodes=None, num_episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, save_data=True, shuffle=False, p=None):
+    def distributed_training(self, optimizer, strategy, episodes=None, num_episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, save_data=True, shuffle=False, p=None):
         avg_reward=None
         if num_episodes!=None:
             episodes=num_episodes
@@ -1025,6 +1040,8 @@ class RL:
         self.processes_her=processes_her
         self.processes_pr=processes_pr
         self.window_size=window_size
+        self.clearing_freq=clearing_freq
+        self.window_size_=window_size_
         self.save_data=save_data
         self.shuffle=shuffle
         if pool_network==True:
