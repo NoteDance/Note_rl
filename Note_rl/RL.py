@@ -81,7 +81,8 @@ class RL:
                 self.reward_pool_list[index]=np.concatenate((self.reward_pool_list[index],np.expand_dims(r,axis=0)),0)
                 self.done_pool_list[index]=np.concatenate((self.done_pool[7],np.expand_dims(done,axis=0)),0)
             if self.clearing_freq!=None:
-                if self.store_counter>=self.clearing_freq[index]:
+                self.store_counter[index]+=len(self.state_pool_list[index])
+                if self.store_counter[index]>=self.clearing_freq[index]:
                     self.state_pool_list[index]=self.state_pool_list[index][self.window_size_:]
                     self.action_pool_list[index]=self.action_pool_list[index][self.window_size_:]
                     self.next_state_pool_list[index]=self.next_state_pool_list[index][self.window_size_:]
@@ -818,7 +819,7 @@ class RL:
                 self.inverse_len=manager.list([0 for _ in range(processes)])
                 if self.clearing_freq_!=None:
                     self.clearing_freq=manager.list()
-                    self.store_counter=0
+                    self.store_counter=manager.list()
             if not save_data or len(self.state_pool_list)==0:
                 for _ in range(processes):
                     self.state_pool_list.append(None)
@@ -828,6 +829,7 @@ class RL:
                     self.done_pool_list.append(None)
                     if self.clearing_freq_!=None:
                         self.clearing_freq.append(self.clearing_freq_)
+                        self.store_counter.append(0)
             self.reward=np.zeros(processes,dtype='float32')
             self.reward=Array('f',self.reward)
             if self.HER!=True:
@@ -884,16 +886,12 @@ class RL:
                         self.next_state_pool=np.concatenate(self.next_state_pool_list)
                         self.reward_pool=np.concatenate(self.reward_pool_list)
                         self.done_pool=np.concatenate(self.done_pool_list)
-                        if self.clearing_freq_!=None:
-                            self.store_counter+=len(self.state_pool)
                     else:
                         self.state_pool[7]=np.concatenate(self.state_pool_list)
                         self.action_pool[7]=np.concatenate(self.action_pool_list)
                         self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                         self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                         self.done_pool[7]=np.concatenate(self.done_pool_list)
-                        if self.clearing_freq_!=None:
-                            self.store_counter+=len(self.state_pool[7])
                     if self.PR==True:
                         self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                     self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
@@ -964,16 +962,12 @@ class RL:
                         self.next_state_pool=np.concatenate(self.next_state_pool_list)
                         self.reward_pool=np.concatenate(self.reward_pool_list)
                         self.done_pool=np.concatenate(self.done_pool_list)
-                        if self.clearing_freq_!=None:
-                            self.store_counter+=len(self.state_pool)
                     else:
                         self.state_pool[7]=np.concatenate(self.state_pool_list)
                         self.action_pool[7]=np.concatenate(self.action_pool_list)
                         self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                         self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                         self.done_pool[7]=np.concatenate(self.done_pool_list)
-                        if self.clearing_freq_!=None:
-                            self.store_counter+=len(self.state_pool[7])
                     if self.PR==True:
                         self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                     self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
@@ -1088,7 +1082,7 @@ class RL:
                 self.inverse_len=manager.list([0 for _ in range(processes)])
                 if self.clearing_freq_!=None:
                     self.clearing_freq=manager.list()
-                    self.store_counter=0
+                    self.store_counter=manager.list()
             if not save_data or len(self.state_pool_list)==0:
                 for _ in range(processes):
                     self.state_pool_list.append(None)
@@ -1098,6 +1092,7 @@ class RL:
                     self.done_pool_list.append(None)
                     if self.clearing_freq_!=None:
                         self.clearing_freq.append(self.clearing_freq_)
+                        self.store_counter.append(0)
             self.reward=np.zeros(processes,dtype='float32')
             self.reward=Array('f',self.reward)
             if self.HER!=True:
@@ -1157,16 +1152,12 @@ class RL:
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
                             self.reward_pool=np.concatenate(self.reward_pool_list)
                             self.done_pool=np.concatenate(self.done_pool_list)
-                            if self.clearing_freq_!=None:
-                                self.store_counter+=len(self.state_pool)
                         else:
                             self.state_pool[7]=np.concatenate(self.state_pool_list)
                             self.action_pool[7]=np.concatenate(self.action_pool_list)
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
-                            if self.clearing_freq_!=None:
-                                self.store_counter+=len(self.state_pool[7])
                         if self.PR==True:
                             self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
@@ -1238,16 +1229,12 @@ class RL:
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
                             self.reward_pool=np.concatenate(self.reward_pool_list)
                             self.done_pool=np.concatenate(self.done_pool_list)
-                            if self.clearing_freq_!=None:
-                                self.store_counter+=len(self.state_pool)
                         else:
                             self.state_pool[7]=np.concatenate(self.state_pool_list)
                             self.action_pool[7]=np.concatenate(self.action_pool_list)
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
-                            if self.clearing_freq_!=None:
-                                self.store_counter+=len(self.state_pool[7])
                         if self.PR==True:
                             self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
@@ -1322,16 +1309,12 @@ class RL:
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
                             self.reward_pool=np.concatenate(self.reward_pool_list)
                             self.done_pool=np.concatenate(self.done_pool_list)
-                            if self.clearing_freq_!=None:
-                                self.store_counter+=len(self.state_pool)
                         else:
                             self.state_pool[7]=np.concatenate(self.state_pool_list)
                             self.action_pool[7]=np.concatenate(self.action_pool_list)
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
-                            if self.clearing_freq_!=None:
-                                self.store_counter+=len(self.state_pool[7])
                         if self.PR==True:
                             self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
@@ -1409,16 +1392,12 @@ class RL:
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
                             self.reward_pool=np.concatenate(self.reward_pool_list)
                             self.done_pool=np.concatenate(self.done_pool_list)
-                            if self.clearing_freq_!=None:
-                                self.store_counter+=len(self.state_pool)
                         else:
                             self.state_pool[7]=np.concatenate(self.state_pool_list)
                             self.action_pool[7]=np.concatenate(self.action_pool_list)
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
-                            if self.clearing_freq_!=None:
-                                self.store_counter+=len(self.state_pool[7])
                         if self.PR==True:
                             self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
