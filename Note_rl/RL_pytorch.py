@@ -530,6 +530,7 @@ class RL_pytorch:
                 self.inverse_len=manager.list([0 for _ in range(processes)])
                 if self.clearing_freq_!=None:
                     self.clearing_freq=manager.list()
+                    self.store_counter=0
             if not save_data or len(self.state_pool_list)==0:
                 for _ in range(processes):
                     self.state_pool_list.append(None)
