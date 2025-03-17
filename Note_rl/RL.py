@@ -1061,7 +1061,6 @@ class RL:
             mp=multiprocessing
             self.mp=mp
             manager=multiprocessing.Manager()
-            self.clearing_freq_=clearing_freq
             if save_data and len(self.state_pool_list)!=0:
                 self.state_pool_list=manager.list(self.state_pool_list)
                 self.action_pool_list=manager.list(self.state_pool_list)
@@ -1069,7 +1068,7 @@ class RL:
                 self.reward_pool_list=manager.list(self.state_pool_list)
                 self.done_pool_list=manager.list(self.state_pool_list)
                 if self.clearing_freq!=None:
-                    self.clearing_freq=manager.list(self.clearing_freq)
+                    self.store_counter=manager.list(self.store_counter)
             else:
                 self.state_pool_list=manager.list()
                 self.action_pool_list=manager.list()
