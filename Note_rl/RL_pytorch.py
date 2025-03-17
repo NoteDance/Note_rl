@@ -512,7 +512,6 @@ class RL_pytorch:
             mp=multiprocessing
             self.mp=mp
             manager=multiprocessing.Manager()
-            self.clearing_freq_=clearing_freq
             if save_data and len(self.state_pool_list)!=0:
                 self.state_pool_list=manager.list(self.state_pool_list)
                 self.action_pool_list=manager.list(self.state_pool_list)
