@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 import tensorflow as tf
-from Note import nn
+from Note_rl.lambda_callback import LambdaCallback
+from Note_rl.assign_param import assign_param
 from tensorflow.python.util import nest
 import numpy as np
 
@@ -46,9 +47,9 @@ class OptFinder:
         self.episodes = episodes
         
         if metrics == 'reward':
-            callback = nn.LambdaCallback(on_episode_end=lambda episode, logs: self.on_episode_end(episode, logs))
+            callback = LambdaCallback(on_episode_end=lambda episode, logs: self.on_episode_end(episode, logs))
         else:
-            callback = nn.LambdaCallback(on_episode_end=lambda episode, logs: self.on_episode_end_(episode, logs))
+            callback = LambdaCallback(on_episode_end=lambda episode, logs: self.on_episode_end_(episode, logs))
         
         for opt in self.optimizers:
             self.agent.optimizer = opt
@@ -107,10 +108,10 @@ class OptFinder:
                 self.losses.clear()
 
             # Restore the weights to the state before agent fitting
-            nn.assign_param(self.agent.param, initial_weights)
+            assign_param(self.agent.param, initial_weights)
 
         # Restore the weights to the state before agent fitting
-        nn.assign_param(self.agent.param, initial_weights)
+        assign_param(self.agent.param, initial_weights)
         
     def plot_reward(self, x_scale='linear'):
         plt.ylabel("Reward")

@@ -1,4 +1,4 @@
-from Note import nn
+from Note_rl.lambda_callback import LambdaCallback
 import multiprocessing
 import numpy as np
 from functools import partial
@@ -56,7 +56,7 @@ class AgentFinder:
                     lock=self.lock,
                     callback_func=self.on_episode_end
                 )
-                callback = nn.LambdaCallback(on_episode_end=partial_callback)
+                callback = LambdaCallback(on_episode_end=partial_callback)
                 self.rewards[self.agents[i]] = []
             else:
                 partial_callback = partial(
@@ -65,7 +65,7 @@ class AgentFinder:
                     lock=self.lock,
                     callback_func=self.on_episode_end_
                 )
-                callback = nn.LambdaCallback(on_episode_end=partial_callback)
+                callback = LambdaCallback(on_episode_end=partial_callback)
                 self.losses[self.agents[i]] = []
             self.agents[i].optimizer = self.optimizers[i]
             if strategy == None:
@@ -89,7 +89,7 @@ class AgentFinder:
                         lock=self.lock,
                         callback_func=self.on_episode_end
                     )
-                    callback = nn.LambdaCallback(on_episode_end=partial_callback)
+                    callback = LambdaCallback(on_episode_end=partial_callback)
                     self.rewards[self.agents[i]] = []
                 else:
                     partial_callback = partial(
@@ -98,7 +98,7 @@ class AgentFinder:
                         lock=self.lock,
                         callback_func=self.on_episode_end_
                     )
-                    callback = nn.LambdaCallback(on_episode_end=partial_callback)
+                    callback = LambdaCallback(on_episode_end=partial_callback)
                 self.losses[self.agents[i]] = []
                 self.agents[i].optimizer = self.optimizers[i]
                 process=multiprocessing.Process(target=self.agents[i].distributed_training,kwargs={
