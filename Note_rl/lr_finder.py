@@ -1,8 +1,8 @@
 from matplotlib import pyplot as plt
 import math
 import tensorflow as tf
-from Note.rl.lambda_callback import LambdaCallback
-from Note.rl.assign_param import assign_param
+from Note_rl.lambda_callback import LambdaCallback
+from Note_rl.assign_param import assign_param
 import keras.backend as K
 from tensorflow.python.util import nest
 import numpy as np
