@@ -2,7 +2,7 @@ import tensorflow as tf
 import Note_rl.policy as Policy
 import Note_rl.prioritized_replay.pr as pr
 from Note_rl.assign_param import assign_param
-import multiprocessing
+import multiprocessing as mp
 from multiprocessing import Array
 import numpy as np
 import numpy.ctypeslib as npc
@@ -214,7 +214,7 @@ class RL:
             if self.processes_pr!=None:
                 process_list=[]
                 for p in range(self.processes_pr):
-                    process=self.mp.Process(target=self.get_batch_in_parallel,args=(p,))
+                    process=mp.Process(target=self.get_batch_in_parallel,args=(p,))
                     process.start()
                     process_list.append(process)
                 for process in process_list:
@@ -230,7 +230,7 @@ class RL:
             if self.processes_her!=None:
                 process_list=[]
                 for p in range(self.processes_her):
-                    process=self.mp.Process(target=self.get_batch_in_parallel,args=(p,))
+                    process=mp.Process(target=self.get_batch_in_parallel,args=(p,))
                     process.start()
                     process_list.append(process)
                 for process in process_list:
@@ -797,9 +797,7 @@ class RL:
         self.save_data=save_data
         self.shuffle=shuffle
         if pool_network==True:
-            mp=multiprocessing
-            self.mp=mp
-            manager=multiprocessing.Manager()
+            manager=mp.Manager()
             self.clearing_freq_=clearing_freq
             if save_data and len(self.state_pool_list)!=0 and self.state_pool_list[0] is not None:
                 self.state_pool_list=manager.list(self.state_pool_list)
@@ -1058,9 +1056,7 @@ class RL:
         self.save_data=save_data
         self.shuffle=shuffle
         if pool_network==True:
-            mp=multiprocessing
-            self.mp=mp
-            manager=multiprocessing.Manager()
+            manager=mp.Manager()
             if save_data and len(self.state_pool_list)!=0 and self.state_pool_list[0] is not None:
                 self.state_pool_list=manager.list(self.state_pool_list)
                 self.action_pool_list=manager.list(self.state_pool_list)
