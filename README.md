@@ -471,22 +471,198 @@ lr_finder.plot_reward_change(sma=20, n_skip_beginning=20, n_skip_end=5, y_lim=(-
 
 Create a Note agent, then execute this code:
 ```python
-from Note import nn
+from Note_rl.opt_finder import OptFinder
 # agent is a Note agent
 optimizers = [tf.keras.optimizers.Adam(), tf.keras.optimizers.AdamW(), tf.keras.optimizers.Adamax()]
-opt_finder = nn.OptFinder(agent, optimizers)
+opt_finder = OptFinder(agent, optimizers)
 
 # Train a agent with 7 episodes
 opt_finder.find(train_loss, pool_network=False, episodes=7)
 ```
 or
 ```python
-from Note import nn
+from Note_rl.opt_finder import OptFinder
 # agent is a Note agent
 optimizers = [tf.keras.optimizers.Adam(), tf.keras.optimizers.AdamW(), tf.keras.optimizers.Adamax()]
 strategy = tf.distribute.MirroredStrategy()
-opt_finder = nn.OptFinder(agent, optimizers)
+opt_finder = OptFinder(agent, optimizers)
 
 # Train a agent with 7 episodes
 opt_finder.find(pool_network=False, strategy=strategy, episodes=7)
+```
+
+# AgentFinder:
+
+**Overview**
+
+The **AgentFinder** class is designed for reinforcement learning or multi-agent training scenarios. It trains multiple agents in parallel and selects the best performing agent based on a chosen metric (reward or loss). The class employs multiprocessing to run each agent’s training in its own process and uses callbacks at the end of each episode to update performance logs. Depending on the selected metric, at the end of the training episodes, it computes the mean reward or mean loss for each agent and updates the shared logs with the best optimizer and corresponding performance value.
+
+---
+
+**Key Attributes**
+
+- **agents**  
+  *Type:* `list`  
+  *Description:* A list of agent instances to be trained. Each agent will run its training in a separate process.
+
+- **optimizers**  
+  *Type:* `list`  
+  *Description:* A list of optimizers corresponding to the agents, used during the training process.
+
+- **rewards**  
+  *Type:* Shared dictionary (created via `multiprocessing.Manager().dict()`)  
+  *Description:* Records the reward values for each episode for every agent. For each agent, a list of rewards is maintained.
+
+- **losses**  
+  *Type:* Shared dictionary  
+  *Description:* Records the loss values for each episode for every agent. For each agent, a list of losses is maintained.
+
+- **logs**  
+  *Type:* Shared dictionary  
+  *Description:* Stores key training information. Initially, it contains:
+  - `best_reward`: Set to a very low value (-1e9) to store the best mean reward.
+  - `best_loss`: Set to a high value (1e9) to store the lowest mean loss.
+  - When training is complete, it also stores `best_opt`, which corresponds to the optimizer of the best performing agent.
+
+- **lock**  
+  *Type:* `multiprocessing.Lock`  
+  *Description:* A multiprocessing lock used to ensure data consistency and thread safety when multiple processes update the shared dictionaries.
+
+- **episode**  
+  *Type:* `int`  
+  *Description:* The total number of training episodes, set in the `find` method. This value is used to determine if the current episode is the final one.
+
+---
+
+**Main Methods**
+
+**1. `__init__(self, agents, optimizers)`**
+
+**Purpose:**  
+Initializes an AgentFinder instance by setting the list of agents and corresponding optimizers. It also creates shared dictionaries for rewards, losses, and logs, and initializes a multiprocessing lock to ensure safe data access.
+
+**Parameters:**
+- `agents`: A list of agent instances.
+- `optimizers`: A list of optimizers corresponding to the agents.
+
+**Details:**  
+The constructor uses `multiprocessing.Manager()` to create shared dictionaries (`rewards`, `losses`, `logs`) and sets initial values for best reward and best loss for subsequent comparisons. A lock object is created to synchronize updates in a multiprocessing environment.
+
+**2. `on_episode_end(self, episode, logs, agent=None, lock=None)`**
+
+**Purpose:**  
+This callback function is invoked at the end of each episode when the metric is set to 'reward'. It updates the corresponding agent’s reward list and, if the episode is the last one, calculates the mean reward. If the mean reward exceeds the current best reward recorded in the shared logs, it updates the logs with the new best reward and the corresponding optimizer.
+
+**Parameters:**
+- `episode`: The current episode number (starting from 0).
+- `logs`: A dictionary containing training information for the current episode; it must include the key `'reward'`.
+- `agent`: The current agent instance, used to update the reward list and access its optimizer.
+- `lock`: The multiprocessing lock used to synchronize access to shared data.
+
+**Key Logic:**
+1. Acquire the lock with `lock.acquire()` to ensure safe data updates.
+2. Retrieve the current episode’s reward from `logs`.
+3. Append the reward to the corresponding agent’s list in the `rewards` dictionary.
+4. If this is the last episode (i.e., `episode + 1 == self.episode`), calculate the mean reward.
+5. If the mean reward is higher than the current `best_reward` in the shared logs, update `logs['best_reward']` and `logs['best_opt']` (using the agent’s optimizer).
+6. Release the lock using `lock.release()`.
+
+**3. `on_episode_end_(self, episode, logs, agent=None, lock=None)`**
+
+**Purpose:**  
+This callback function is used when the metric is set to 'loss'. It updates the corresponding agent’s loss list and, at the end of the final episode, computes the mean loss. If the mean loss is lower than the current best loss recorded in the shared logs, it updates the logs with the new best loss and the corresponding optimizer.
+
+**Parameters:**
+- `episode`: The current episode number (starting from 0).
+- `logs`: A dictionary containing training information for the current episode; it must include the key `'loss'`.
+- `agent`: The current agent instance.
+- `lock`: The multiprocessing lock used to synchronize access to shared data.
+
+**Key Logic:**
+1. Acquire the lock to ensure safe updates.
+2. Retrieve the loss from `logs` and append it to the corresponding agent’s list in the `losses` dictionary.
+3. At the last episode, calculate the mean loss and compare it to the current best loss.
+4. If the mean loss is lower, update `logs['best_loss']` and `logs['best_opt']` (with the agent’s optimizer).
+5. Release the lock.
+
+**4. `find(self, train_loss=None, pool_network=True, processes=None, processes_her=None, processes_pr=None, strategy=None, episodes=1, metrics='reward', jit_compile=True)`**
+
+**Purpose:**  
+Starts the training of multiple agents using multiprocessing and utilizes callback functions to update the best agent information based on the selected metric (reward or loss).
+
+**Parameters:**
+- `train_loss`: A function or parameter for computing the training loss (optional).
+- `pool_network`: Boolean flag indicating whether to use a shared network pool.
+- `processes`: Number of processes to be used for training (optional).
+- `processes_her`: Parameters related to HER (Hindsight Experience Replay) (optional).
+- `processes_pr`: Parameters possibly related to Prioritized Experience Replay (optional).
+- `strategy`: Distributed training strategy (optional). If provided, the distributed training mode is used; otherwise, standard training is performed.
+- `episodes`: Total number of training episodes.
+- `metrics`: The metric to be used, either `'reward'` or `'loss'`. This choice determines which callback function is used.
+- `jit_compile`: Boolean flag indicating whether to enable JIT compilation to speed up training.
+
+**Key Logic:**
+1. Set the total number of episodes to `self.episodes`.
+2. Iterate over each agent:
+   - If the selected metric is `'reward'`:
+     - Use `functools.partial` to create a `partial_callback` that binds the agent, lock, and the `on_episode_end` callback.
+     - Create a callback instance using `nn.LambdaCallback`.
+     - Initialize the agent’s reward list in the `rewards` dictionary.
+   - If the selected metric is `'loss'`:
+     - Similarly, bind the `on_episode_end_` callback.
+     - Initialize the agent’s loss list in the `losses` dictionary.
+3. Assign the corresponding optimizer to each agent.
+4. Depending on whether a `strategy` is provided, choose the training mode:
+   - If `strategy` is `None`, call the agent’s `train` method with the appropriate parameters (e.g., training loss, episodes, network pool options, process parameters, callbacks, and jit_compile settings).
+   - If a `strategy` is provided, call the agent’s `distributed_training` method with similar parameters and a similar callback setup.
+5. Start all training processes and wait for them to complete using `join()`.
+
+---
+
+**Example Usage**
+
+Below is an example demonstrating how to use AgentFinder to train multiple agents and select the best performing agent based on either reward or loss:
+
+```python
+from Note_rl.agent_finder import AgentFinder
+
+# Assume agent1 and agent2 are two initialized agent instances,
+# and optimizer1 and optimizer2 are their respective optimizers.
+agent1 = ...  # Initialize agent 1
+agent2 = ...  # Initialize agent 2
+optimizer1 = ...  # Optimizer for agent 1
+optimizer2 = ...  # Optimizer for agent 2
+
+# Create lists of agents and optimizers
+agents = [agent1, agent2]
+optimizers = [optimizer1, optimizer2]
+
+# Initialize the AgentFinder instance
+agent_finder = AgentFinder(agents, optimizers)
+
+# Assume train_loss is defined as a function or metric for calculating training loss (if needed)
+train_loss = ...
+
+# Choose the evaluation metric: 'reward' or 'loss'
+metrics_choice = 'reward'  # or 'loss'
+
+# Execute training with 10 episodes and enable JIT compilation
+agent_finder.find(
+    train_loss=train_loss,
+    pool_network=True,
+    processes=4,
+    processes_her=2,
+    processes_pr=2,
+    strategy=None,  # Pass None to use standard training (not distributed)
+    episodes=10,
+    metrics=metrics_choice,
+    jit_compile=True
+)
+
+# After training, retrieve the best record from agent_finder.logs
+if metrics_choice == 'reward':
+    print("Best Mean Reward:", agent_finder.logs['best_reward'])
+else:
+    print("Best Mean Loss:", agent_finder.logs['best_loss'])
+print("Best Optimizer:", agent_finder.logs['best_opt'])
 ```
