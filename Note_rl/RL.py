@@ -530,10 +530,7 @@ class RL:
                     total_loss = 0.0
                     num_batches = 0
                     if self.pool_network==True:
-                        if self.shuffle!=True:
-                            train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.global_batch_size)
-                        else:
-                            train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.global_batch_size)
+                        train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.global_batch_size)
                     else:
                         train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.batch)
                     if isinstance(self.strategy,tf.distribute.MirroredStrategy):
@@ -577,10 +574,7 @@ class RL:
                         total_loss,num_batches=self.CTL(multi_worker_dataset,math.ceil(len(self.state_pool)/self.global_batch_size))
                 else:
                     if self.pool_network==True:
-                        if self.shuffle!=True:
-                            train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.global_batch_size)
-                        else:
-                            train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.global_batch_size)
+                        train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.global_batch_size)
                     else:
                         train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.batch)
                     for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
@@ -768,7 +762,7 @@ class RL:
             s=next_s
     
     
-    def train(self, train_loss, optimizer, episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, save_data=True, shuffle=False, p=None):
+    def train(self, train_loss, optimizer, episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, save_data=True, p=None):
         avg_reward=None
         if p==None:
             self.p=9
@@ -795,7 +789,6 @@ class RL:
         self.clearing_freq=clearing_freq
         self.window_size_=window_size_
         self.save_data=save_data
-        self.shuffle=shuffle
         if pool_network==True:
             manager=mp.Manager()
             self.clearing_freq_=clearing_freq
@@ -1024,7 +1017,7 @@ class RL:
         return
     
     
-    def distributed_training(self, optimizer, strategy, episodes=None, num_episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, save_data=True, shuffle=False, p=None):
+    def distributed_training(self, optimizer, strategy, episodes=None, num_episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, save_data=True, p=None):
         avg_reward=None
         if num_episodes!=None:
             episodes=num_episodes
@@ -1054,7 +1047,6 @@ class RL:
         self.clearing_freq=clearing_freq
         self.window_size_=window_size_
         self.save_data=save_data
-        self.shuffle=shuffle
         if pool_network==True:
             manager=mp.Manager()
             if save_data and len(self.state_pool_list)!=0 and self.state_pool_list[0] is not None:
