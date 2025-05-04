@@ -764,18 +764,19 @@ class RL:
     
     def train(self, train_loss, optimizer, episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, save_data=True, p=None):
         avg_reward=None
-        if p==None:
-            self.p=9
-        else:
-            self.p=p-1
-        if episodes%10!=0:
-            p=episodes-episodes%self.p
-            p=int(p/self.p)
-        else:
-            p=episodes/(self.p+1)
-            p=int(p)
-        if p==0:
-            p=1
+        if p!=0:
+            if p==None:
+                self.p=9
+            else:
+                self.p=p-1
+            if episodes%10!=0:
+                p=episodes-episodes%self.p
+                p=int(p/self.p)
+            else:
+                p=episodes/(self.p+1)
+                p=int(p)
+            if p==0:
+                p=1
         self.train_loss=train_loss
         if self.optimizer==None:
             self.optimizer=optimizer
@@ -912,19 +913,21 @@ class RL:
                                 self.total_time=int(self.total_time)
                             else:
                                 self.total_time=int(self.total_time)+1
-                            print('episode:{0}'.format(self.total_episode))
-                            print('average reward:{0}'.format(avg_reward))
-                            print()
-                            print('time:{0}s'.format(self.total_time))
+                            if p!=0:
+                                print('episode:{0}'.format(self.total_episode))
+                                print('average reward:{0}'.format(avg_reward))
+                                print()
+                                print('time:{0}s'.format(self.total_time))
                             return
-                if i%p==0:
-                    if len(self.state_pool)>=self.batch:
-                        print('episode:{0}   loss:{1:.4f}'.format(i+1,loss))
-                    if avg_reward!=None:
-                        print('episode:{0}   average reward:{1}'.format(i+1,avg_reward))
-                    else:
-                        print('episode:{0}   reward:{1}'.format(i+1,self.reward))
-                    print()
+                if p!=0:
+                    if i%p==0:
+                        if len(self.state_pool)>=self.batch:
+                            print('episode:{0}   loss:{1:.4f}'.format(i+1,loss))
+                        if avg_reward!=None:
+                            print('episode:{0}   average reward:{1}'.format(i+1,avg_reward))
+                        else:
+                            print('episode:{0}   reward:{1}'.format(i+1,self.reward))
+                        print()
                 t2=time.time()
                 self.time+=(t2-t1)
         else:
@@ -989,19 +992,21 @@ class RL:
                                 self.total_time=int(self.total_time)
                             else:
                                 self.total_time=int(self.total_time)+1
-                            print('episode:{0}'.format(self.total_episode))
-                            print('average reward:{0}'.format(avg_reward))
-                            print()
-                            print('time:{0}s'.format(self.total_time))
+                            if p!=0:
+                                print('episode:{0}'.format(self.total_episode))
+                                print('average reward:{0}'.format(avg_reward))
+                                print()
+                                print('time:{0}s'.format(self.total_time))
                             return
-                if i%p==0:
-                    if len(self.state_pool)>=self.batch:
-                        print('episode:{0}   loss:{1:.4f}'.format(i+1,loss))
-                    if avg_reward!=None:
-                        print('episode:{0}   average reward:{1}'.format(i+1,avg_reward))
-                    else:
-                        print('episode:{0}   reward:{1}'.format(i+1,self.reward))
-                    print()
+                if p!=0:
+                    if i%p==0:
+                        if len(self.state_pool)>=self.batch:
+                            print('episode:{0}   loss:{1:.4f}'.format(i+1,loss))
+                        if avg_reward!=None:
+                            print('episode:{0}   average reward:{1}'.format(i+1,avg_reward))
+                        else:
+                            print('episode:{0}   reward:{1}'.format(i+1,self.reward))
+                        print()
                 t2=time.time()
                 self.time+=(t2-t1)
         time_=self.time-int(self.time)
@@ -1010,7 +1015,8 @@ class RL:
         else:
             self.total_time=int(self.time)+1
         self.total_time+=self.time
-        print('time:{0}s'.format(self.time))
+        if p!=0:
+            print('time:{0}s'.format(self.time))
         for callback in self.callbacks:
             if hasattr(callback, 'on_train_end'):
                 callback.on_train_end(logs={})
@@ -1021,18 +1027,19 @@ class RL:
         avg_reward=None
         if num_episodes!=None:
             episodes=num_episodes
-        if p==None:
-            self.p=9
-        else:
-            self.p=p-1
-        if episodes%10!=0:
-            p=episodes-episodes%self.p
-            p=int(p/self.p)
-        else:
-            p=episodes/(self.p+1)
-            p=int(p)
-        if p==0:
-            p=1
+        if p!=0:
+            if p==None:
+                self.p=9
+            else:
+                self.p=p-1
+            if episodes%10!=0:
+                p=episodes-episodes%self.p
+                p=int(p/self.p)
+            else:
+                p=episodes/(self.p+1)
+                p=int(p)
+            if p==0:
+                p=1
         if self.optimizer==None:
             self.optimizer=optimizer
         self.strategy=strategy
@@ -1172,19 +1179,21 @@ class RL:
                                     self.total_time=int(self.total_time)
                                 else:
                                     self.total_time=int(self.total_time)+1
-                                print('episode:{0}'.format(self.total_episode))
-                                print('average reward:{0}'.format(avg_reward))
-                                print()
-                                print('time:{0}s'.format(self.total_time))
+                                if p!=0:
+                                    print('episode:{0}'.format(self.total_episode))
+                                    print('average reward:{0}'.format(avg_reward))
+                                    print()
+                                    print('time:{0}s'.format(self.total_time))
                                 return
-                    if i%p==0:
-                        if len(self.state_pool)>=self.batch:
-                            print('episode:{0}   loss:{1:.4f}'.format(i+1,loss))
-                        if avg_reward!=None:
-                            print('episode:{0}   average reward:{1}'.format(i+1,avg_reward))
-                        else:
-                            print('episode:{0}   reward:{1}'.format(i+1,self.reward))
-                        print()
+                    if p!=0:
+                        if i%p==0:
+                            if len(self.state_pool)>=self.batch:
+                                print('episode:{0}   loss:{1:.4f}'.format(i+1,loss))
+                            if avg_reward!=None:
+                                print('episode:{0}   average reward:{1}'.format(i+1,avg_reward))
+                            else:
+                                print('episode:{0}   reward:{1}'.format(i+1,self.reward))
+                            print()
                     t2=time.time()
                     self.time+=(t2-t1)
             else:
@@ -1250,19 +1259,21 @@ class RL:
                                     self.total_time=int(self.total_time)
                                 else:
                                     self.total_time=int(self.total_time)+1
-                                print('episode:{0}'.format(self.total_episode))
-                                print('average reward:{0}'.format(avg_reward))
-                                print()
-                                print('time:{0}s'.format(self.total_time))
+                                if p!=0:
+                                    print('episode:{0}'.format(self.total_episode))
+                                    print('average reward:{0}'.format(avg_reward))
+                                    print()
+                                    print('time:{0}s'.format(self.total_time))
                                 return
-                    if i%p==0:
-                        if len(self.state_pool)>=self.batch:
-                            print('episode:{0}   loss:{1:.4f}'.format(i+1,loss))
-                        if avg_reward!=None:
-                            print('episode:{0}   average reward:{1}'.format(i+1,avg_reward))
-                        else:
-                            print('episode:{0}   reward:{1}'.format(i+1,self.reward))
-                        print()
+                    if p!=0:
+                        if i%p==0:
+                            if len(self.state_pool)>=self.batch:
+                                print('episode:{0}   loss:{1:.4f}'.format(i+1,loss))
+                            if avg_reward!=None:
+                                print('episode:{0}   average reward:{1}'.format(i+1,avg_reward))
+                            else:
+                                print('episode:{0}   reward:{1}'.format(i+1,self.reward))
+                            print()
                     t2=time.time()
                     self.time+=(t2-t1)
         elif isinstance(strategy,tf.distribute.MultiWorkerMirroredStrategy):
@@ -1334,19 +1345,21 @@ class RL:
                                     self.total_time=int(self.total_time)
                                 else:
                                     self.total_time=int(self.total_time)+1
-                                print('episode:{0}'.format(self.total_episode))
-                                print('average reward:{0}'.format(avg_reward))
-                                print()
-                                print('time:{0}s'.format(self.total_time))
+                                if p!=0:
+                                    print('episode:{0}'.format(self.total_episode))
+                                    print('average reward:{0}'.format(avg_reward))
+                                    print()
+                                    print('time:{0}s'.format(self.total_time))
                                 return
-                    if episode%p==0:
-                        if len(self.state_pool)>=self.batch:
-                            print('episode:{0}   loss:{1:.4f}'.format(episode+1,loss))
-                        if avg_reward!=None:
-                            print('episode:{0}   average reward:{1}'.format(episode+1,avg_reward))
-                        else:
-                            print('episode:{0}   reward:{1}'.format(episode+1,self.reward))
-                        print()
+                    if p!=0:
+                        if episode%p==0:
+                            if len(self.state_pool)>=self.batch:
+                                print('episode:{0}   loss:{1:.4f}'.format(episode+1,loss))
+                            if avg_reward!=None:
+                                print('episode:{0}   average reward:{1}'.format(episode+1,avg_reward))
+                            else:
+                                print('episode:{0}   reward:{1}'.format(episode+1,self.reward))
+                            print()
                     t2=time.time()
                     self.time+=(t2-t1)
             else:
@@ -1417,19 +1430,21 @@ class RL:
                                     self.total_time=int(self.total_time)
                                 else:
                                     self.total_time=int(self.total_time)+1
-                                print('episode:{0}'.format(self.total_episode))
-                                print('average reward:{0}'.format(avg_reward))
-                                print()
-                                print('time:{0}s'.format(self.total_time))
+                                if p!=0:
+                                    print('episode:{0}'.format(self.total_episode))
+                                    print('average reward:{0}'.format(avg_reward))
+                                    print()
+                                    print('time:{0}s'.format(self.total_time))
                                 return
-                    if episode%p==0:
-                        if len(self.state_pool)>=self.batch:
-                            print('episode:{0}   loss:{1:.4f}'.format(episode+1,loss))
-                        if avg_reward!=None:
-                            print('episode:{0}   average reward:{1}'.format(episode+1,avg_reward))
-                        else:
-                            print('episode:{0}   reward:{1}'.format(episode+1,self.reward))
-                        print()
+                    if p!=0:
+                        if episode%p==0:
+                            if len(self.state_pool)>=self.batch:
+                                print('episode:{0}   loss:{1:.4f}'.format(episode+1,loss))
+                            if avg_reward!=None:
+                                print('episode:{0}   average reward:{1}'.format(episode+1,avg_reward))
+                            else:
+                                print('episode:{0}   reward:{1}'.format(episode+1,self.reward))
+                            print()
                     t2=time.time()
                     self.time+=(t2-t1)
         time_=self.time-int(self.time)
@@ -1438,7 +1453,8 @@ class RL:
         else:
             self.total_time=int(self.time)+1
         self.total_time+=self.time
-        print('time:{0}s'.format(self.time))
+        if p!=0:
+            print('time:{0}s'.format(self.time))
         for callback in self.callbacks:
             if hasattr(callback, 'on_train_end'):
                 callback.on_train_end(logs={})
