@@ -62,7 +62,8 @@ class OptFinder:
                                processes_her=processes_her,
                                processes_pr=processes_her,
                                callbacks=[callback],
-                               jit_compile=jit_compile)
+                               jit_compile=jit_compile,
+                               p=0)
             else:
                 self.agent.distributed_training(strategy=strategy,
                                episodes=episodes,
@@ -71,7 +72,8 @@ class OptFinder:
                                processes_her=processes_her,
                                processes_pr=processes_her,
                                callbacks=[callback],
-                               jit_compile=jit_compile)
+                               jit_compile=jit_compile,
+                               p=0)
             
             if pool_network==True:
                 for i in range(processes):
