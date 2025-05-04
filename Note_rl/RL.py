@@ -1724,10 +1724,8 @@ class RL:
         input_file=open(path,'rb')
         model=pickle.load(input_file)
         param=self.param
-        strategy=self.strategy
         self.__dict__.update(model.__dict__)
         self.param=param
-        self.strategy=strategy
         param=pickle.load(input_file)
         assign_param(self.param,param)
         if type(self.optimizer)==list:
