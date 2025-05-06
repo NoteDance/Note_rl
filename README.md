@@ -411,6 +411,7 @@ output_file.close()
 ```
 or
 ```python
+model = MyModel(...)
 model.save_param('param.dat')
 ```
 
@@ -423,6 +424,7 @@ input_file.close()
 ```
 or
 ```python
+model = MyModel(...)
 model.restore_param('param.dat')
 ```
 or
@@ -433,6 +435,7 @@ param=nn.restore_param('param.dat')
 
 # Save model:
 ```python
+model = MyModel(...)
 model.save('model.dat')
 ```
 
