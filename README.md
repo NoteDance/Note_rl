@@ -541,7 +541,7 @@ opt_finder = OptFinder(agent, optimizers)
 opt_finder.find(pool_network=False, strategy=strategy, episodes=7)
 ```
 
-# AgentFinder:
+# ParallelFinder:
 
 **Overview**
 
@@ -674,7 +674,7 @@ Starts the training of multiple agents using multiprocessing and utilizes callba
 Below is an example demonstrating how to use AgentFinder to train multiple agents and select the best performing agent based on either reward or loss:
 
 ```python
-from Note_rl.agent_finder import AgentFinder
+from Note_rl.parallel_finder import ParallelFinder
 
 # Assume agent1 and agent2 are two initialized agent instances,
 # and optimizer1 and optimizer2 are their respective optimizers.
@@ -688,7 +688,7 @@ agents = [agent1, agent2]
 optimizers = [optimizer1, optimizer2]
 
 # Initialize the AgentFinder instance
-agent_finder = AgentFinder(agents, optimizers)
+parallel_finder = ParallelFinder(agents, optimizers)
 
 # Assume train_loss is defined as a function or metric for calculating training loss (if needed)
 train_loss = ...
@@ -697,7 +697,7 @@ train_loss = ...
 metrics_choice = 'reward'  # or 'loss'
 
 # Execute training with 10 episodes and enable JIT compilation
-agent_finder.find(
+parallel_finder.find(
     train_loss=train_loss,
     pool_network=True,
     processes=4,
