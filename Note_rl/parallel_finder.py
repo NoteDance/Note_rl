@@ -27,11 +27,7 @@ class ParallelFinder:
     def on_episode_end(self, episode, logs, agent=None, lock=None):
         lock.acquire()
         reward = logs['reward']
-        if agent not in self.rewards:
-            self.rewards[agent] = []
-            self.rewards[agent].append(reward)
-        else:
-            self.rewards[agent].append(reward)
+        self.rewards[agent].append(reward)
         
         if episode+1 == self.episode:
             mean_reward = np.mean(self.rewards[agent])
@@ -50,11 +46,7 @@ class ParallelFinder:
     def on_episode_end_(self, episode, logs, agent=None, lock=None):
         lock.acquire()
         loss = logs['loss']
-        if agent not in self.losses:
-            self.losses[agent] = []
-            self.losses[agent].append(loss)
-        else:
-            self.losses[agent].append(loss)
+        self.losses[agent].append(loss)
         
         if episode+1 == self.episode:
             mean_loss = np.mean(self.losses[agent])
