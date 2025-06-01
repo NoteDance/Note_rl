@@ -794,6 +794,7 @@ class RL:
         self.save_data=save_data
         if pool_network==True:
             manager=mp.Manager()
+            self.env=manager.list(self.env)
             self.clearing_freq_=clearing_freq
             if save_data and len(self.state_pool_list)!=0 and self.state_pool_list[0] is not None:
                 self.state_pool_list=manager.list(self.state_pool_list)
@@ -1058,6 +1059,7 @@ class RL:
         self.save_data=save_data
         if pool_network==True:
             manager=mp.Manager()
+            self.env=manager.list(self.env)
             if save_data and len(self.state_pool_list)!=0 and self.state_pool_list[0] is not None:
                 self.state_pool_list=manager.list(self.state_pool_list)
                 self.action_pool_list=manager.list(self.action_pool_list)
