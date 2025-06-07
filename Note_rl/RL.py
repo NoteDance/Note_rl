@@ -656,7 +656,25 @@ class RL:
             self.reward=r+self.reward
             if self.PR==True:
                 self.prioritized_replay.TD=tf.Variable(self.prioritized_replay.TD)
+            if self.pool_size_!=None and len(self.state_pool)>=self.pool_size_:
+                state_pool=self.state_pool
+                action_pool=self.action_pool
+                next_state_pool=self.next_state_pool
+                reward_pool=self.reward_pool
+                done_pool=self.done_pool
+                idx=np.random.choice(self.state_pool.shape[0], size=self.pool_size_, replace=False)
+                self.state_pool=self.state_pool[idx]
+                self.action_pool=self.action_pool[idx]
+                self.next_state_pool=self.action_pool[idx]
+                self.reward_pool=self.action_pool[idx]
+                self.done_pool=self.action_pool[idx]
             loss=self.train1(train_loss,optimizer)
+            if self.pool_size_!=None:
+                self.state_pool=state_pool
+                self.action_pool=action_pool
+                self.next_state_pool=next_state_pool
+                self.reward_pool=reward_pool
+                self.done_pool=done_pool
             if done:
                 self.reward_list.append(self.reward)
                 if len(self.reward_list)>self.trial_count:
@@ -720,7 +738,7 @@ class RL:
         s=self.env_(initial=True,p=p)
         s=np.array(s)
         while True:
-            if self.PR!=True and self.HER!=True:
+            if self.random or (self.PR!=True and self.HER!=True):
                 if self.state_pool_list[p] is None:
                     index=p
                     self.inverse_len[index]=1
@@ -745,7 +763,7 @@ class RL:
             next_s=np.array(next_s)
             r=np.array(r)
             done=np.array(done)
-            if self.PR!=True and self.HER!=True:
+            if self.random or (self.PR!=True and self.HER!=True):
                 lock_list[index].acquire()
                 self.pool(s,a,next_s,r,done,index)
                 lock_list[index].release()
@@ -764,7 +782,7 @@ class RL:
             s=next_s
     
     
-    def train(self, train_loss, optimizer, episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, save_data=True, p=None):
+    def train(self, train_loss, optimizer, episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, random=True, pool_size_=None, save_data=True, p=None):
         avg_reward=None
         if p!=0:
             if p==None:
@@ -791,6 +809,8 @@ class RL:
         self.window_size=window_size
         self.clearing_freq=clearing_freq
         self.window_size_=window_size_
+        self.random=random
+        self.pool_size_=pool_size_
         self.save_data=save_data
         if pool_network==True:
             manager=mp.Manager()
@@ -878,12 +898,26 @@ class RL:
                         self.next_state_pool=np.concatenate(self.next_state_pool_list)
                         self.reward_pool=np.concatenate(self.reward_pool_list)
                         self.done_pool=np.concatenate(self.done_pool_list)
+                        if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                            idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                            self.state_pool=self.state_pool[idx]
+                            self.action_pool=self.action_pool[idx]
+                            self.next_state_pool=self.next_state_pool[idx]
+                            self.reward_pool=self.reward_pool[idx]
+                            self.done_pool=self.done_pool[idx]
                     else:
                         self.state_pool[7]=np.concatenate(self.state_pool_list)
                         self.action_pool[7]=np.concatenate(self.action_pool_list)
                         self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                         self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                         self.done_pool[7]=np.concatenate(self.done_pool_list)
+                        if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                            idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                            self.state_pool[7]=self.state_pool[7][idx]
+                            self.action_pool[7]=self.action_pool[7][idx]
+                            self.next_state_pool[7]=self.next_state_pool[7][idx]
+                            self.reward_pool[7]=self.reward_pool[7][idx]
+                            self.done_pool[7]=self.done_pool[7][idx]
                     if self.PR==True:
                         self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                     self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
@@ -956,12 +990,26 @@ class RL:
                         self.next_state_pool=np.concatenate(self.next_state_pool_list)
                         self.reward_pool=np.concatenate(self.reward_pool_list)
                         self.done_pool=np.concatenate(self.done_pool_list)
+                        if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                            idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                            self.state_pool=self.state_pool[idx]
+                            self.action_pool=self.action_pool[idx]
+                            self.next_state_pool=self.next_state_pool[idx]
+                            self.reward_pool=self.reward_pool[idx]
+                            self.done_pool=self.done_pool[idx]
                     else:
                         self.state_pool[7]=np.concatenate(self.state_pool_list)
                         self.action_pool[7]=np.concatenate(self.action_pool_list)
                         self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                         self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                         self.done_pool[7]=np.concatenate(self.done_pool_list)
+                        if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                            idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                            self.state_pool[7]=self.state_pool[7][idx]
+                            self.action_pool[7]=self.action_pool[7][idx]
+                            self.next_state_pool[7]=self.next_state_pool[7][idx]
+                            self.reward_pool[7]=self.reward_pool[7][idx]
+                            self.done_pool[7]=self.done_pool[7][idx]
                     if self.PR==True:
                         self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                     self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
@@ -1026,7 +1074,7 @@ class RL:
         return
     
     
-    def distributed_training(self, optimizer, strategy, episodes=None, num_episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, save_data=True, p=None):
+    def distributed_training(self, optimizer, strategy, episodes=None, num_episodes=None, jit_compile=True, pool_network=True, processes=None, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, random=True, pool_size_=None, save_data=True, p=None):
         avg_reward=None
         if num_episodes!=None:
             episodes=num_episodes
@@ -1056,6 +1104,8 @@ class RL:
         self.window_size=window_size
         self.clearing_freq=clearing_freq
         self.window_size_=window_size_
+        self.random=random
+        self.pool_size_=pool_size_
         self.save_data=save_data
         if pool_network==True:
             manager=mp.Manager()
@@ -1145,12 +1195,26 @@ class RL:
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
                             self.reward_pool=np.concatenate(self.reward_pool_list)
                             self.done_pool=np.concatenate(self.done_pool_list)
+                            if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                                idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                                self.state_pool=self.state_pool[idx]
+                                self.action_pool=self.action_pool[idx]
+                                self.next_state_pool=self.next_state_pool[idx]
+                                self.reward_pool=self.reward_pool[idx]
+                                self.done_pool=self.done_pool[idx]
                         else:
                             self.state_pool[7]=np.concatenate(self.state_pool_list)
                             self.action_pool[7]=np.concatenate(self.action_pool_list)
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
+                            if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                                idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                                self.state_pool[7]=self.state_pool[7][idx]
+                                self.action_pool[7]=self.action_pool[7][idx]
+                                self.next_state_pool[7]=self.next_state_pool[7][idx]
+                                self.reward_pool[7]=self.reward_pool[7][idx]
+                                self.done_pool[7]=self.done_pool[7][idx]
                         if self.PR==True:
                             self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
@@ -1224,12 +1288,26 @@ class RL:
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
                             self.reward_pool=np.concatenate(self.reward_pool_list)
                             self.done_pool=np.concatenate(self.done_pool_list)
+                            if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                                idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                                self.state_pool=self.state_pool[idx]
+                                self.action_pool=self.action_pool[idx]
+                                self.next_state_pool=self.next_state_pool[idx]
+                                self.reward_pool=self.reward_pool[idx]
+                                self.done_pool=self.done_pool[idx]
                         else:
                             self.state_pool[7]=np.concatenate(self.state_pool_list)
                             self.action_pool[7]=np.concatenate(self.action_pool_list)
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
+                            if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                                idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                                self.state_pool[7]=self.state_pool[7][idx]
+                                self.action_pool[7]=self.action_pool[7][idx]
+                                self.next_state_pool[7]=self.next_state_pool[7][idx]
+                                self.reward_pool[7]=self.reward_pool[7][idx]
+                                self.done_pool[7]=self.done_pool[7][idx]
                         if self.PR==True:
                             self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
@@ -1306,12 +1384,26 @@ class RL:
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
                             self.reward_pool=np.concatenate(self.reward_pool_list)
                             self.done_pool=np.concatenate(self.done_pool_list)
+                            if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                                idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                                self.state_pool=self.state_pool[idx]
+                                self.action_pool=self.action_pool[idx]
+                                self.next_state_pool=self.next_state_pool[idx]
+                                self.reward_pool=self.reward_pool[idx]
+                                self.done_pool=self.done_pool[idx]
                         else:
                             self.state_pool[7]=np.concatenate(self.state_pool_list)
                             self.action_pool[7]=np.concatenate(self.action_pool_list)
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
+                            if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                                idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                                self.state_pool[7]=self.state_pool[7][idx]
+                                self.action_pool[7]=self.action_pool[7][idx]
+                                self.next_state_pool[7]=self.next_state_pool[7][idx]
+                                self.reward_pool[7]=self.reward_pool[7][idx]
+                                self.done_pool[7]=self.done_pool[7][idx]
                         if self.PR==True:
                             self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
@@ -1391,12 +1483,26 @@ class RL:
                             self.next_state_pool=np.concatenate(self.next_state_pool_list)
                             self.reward_pool=np.concatenate(self.reward_pool_list)
                             self.done_pool=np.concatenate(self.done_pool_list)
+                            if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                                idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                                self.state_pool=self.state_pool[idx]
+                                self.action_pool=self.action_pool[idx]
+                                self.next_state_pool=self.next_state_pool[idx]
+                                self.reward_pool=self.reward_pool[idx]
+                                self.done_pool=self.done_pool[idx]
                         else:
                             self.state_pool[7]=np.concatenate(self.state_pool_list)
                             self.action_pool[7]=np.concatenate(self.action_pool_list)
                             self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
                             self.reward_pool[7]=np.concatenate(self.reward_pool_list)
                             self.done_pool[7]=np.concatenate(self.done_pool_list)
+                            if pool_size_!=None and len(self.state_pool)>=pool_size_:
+                                idx=np.random.choice(self.state_pool.shape[0], size=pool_size_, replace=False)
+                                self.state_pool[7]=self.state_pool[7][idx]
+                                self.action_pool[7]=self.action_pool[7][idx]
+                                self.next_state_pool[7]=self.next_state_pool[7][idx]
+                                self.reward_pool[7]=self.reward_pool[7][idx]
+                                self.done_pool[7]=self.done_pool[7][idx]
                         if self.PR==True:
                             self.prioritized_replay.TD=tf.Variable(tf.concat(self.TD_list, axis=0))
                         self.reward_list.append(np.mean(npc.as_array(self.reward.get_obj())))
