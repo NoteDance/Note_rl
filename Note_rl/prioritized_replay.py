@@ -10,7 +10,7 @@ class pr:
     
     def sample(self,state_pool,action_pool,next_state_pool,reward_pool,done_pool,epsilon,alpha,batch):
         p=(self.TD+epsilon)**alpha/tf.reduce_sum((self.TD+epsilon)**alpha)
-        self.index=np.random.choice(np.arange(len(state_pool)),size=[batch],p=p.numpy())
+        self.index=np.random.choice(np.arange(len(state_pool)),size=[batch],p=p.numpy(),replace=False)
         return state_pool[self.index],action_pool[self.index],next_state_pool[self.index],reward_pool[self.index],done_pool[self.index]
     
     
@@ -32,7 +32,7 @@ class pr_:
     
     def sample(self,state_pool,action_pool,next_state_pool,reward_pool,done_pool,epsilon,alpha,batch):
         p=(self.TD+epsilon)**alpha/np.sum((self.TD+epsilon)**alpha)
-        self.index=np.random.choice(np.arange(len(state_pool)),size=[batch],p=p)
+        self.index=np.random.choice(np.arange(len(state_pool)),size=[batch],p=p,replace=False)
         return state_pool[self.index],action_pool[self.index],next_state_pool[self.index],reward_pool[self.index],done_pool[self.index]
     
     
