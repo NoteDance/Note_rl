@@ -79,7 +79,7 @@ class LRFinder:
         else:
             K.set_value(self.agent.optimizer[-1].lr, lr)
 
-    def find(self, train_loss=None, pool_network=True, processes=None, processes_her=None, processes_pr=None, strategy=None, N=None, window_size=None, start_lr=None, end_lr=None, episodes=1, metrics='reward', jit_compile=True):
+    def find(self, train_loss=None, pool_network=True, processes=None, processes_her=None, processes_pr=None, strategy=None, random=True, num_updates=None, N=None, window_size=None, start_lr=None, end_lr=None, episodes=1, metrics='reward', jit_compile=True):
         self.factor = (end_lr / start_lr) ** (1.0 / N)
         self.window_size = window_size
         # Save weights into a file
@@ -108,7 +108,9 @@ class LRFinder:
                            pool_network=pool_network,
                            processes=processes,
                            processes_her=processes_her,
-                           processes_pr=processes_her,
+                           processes_pr=processes_pr,
+                           random=random,
+                           num_updates=num_updates,
                            callbacks=[callback],
                            jit_compile=jit_compile,
                            p=0)
@@ -118,7 +120,9 @@ class LRFinder:
                            pool_network=pool_network,
                            processes=processes,
                            processes_her=processes_her,
-                           processes_pr=processes_her,
+                           processes_pr=processes_pr,
+                           random=random,
+                           num_updates=num_updates,
                            callbacks=[callback],
                            jit_compile=jit_compile,
                            p=0)
