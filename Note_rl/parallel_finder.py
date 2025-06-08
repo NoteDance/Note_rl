@@ -62,7 +62,7 @@ class ParallelFinder:
                 self.logs['loss'] = mean_loss
         lock.release()
 
-    def find(self, train_loss=None, pool_network=True, processes=None, processes_her=None, processes_pr=None, strategy=None, episodes=1, metrics='reward', jit_compile=True):
+    def find(self, train_loss=None, pool_network=True, processes=None, processes_her=None, processes_pr=None, strategy=None, random=True, num_updates=None, episodes=1, metrics='reward', jit_compile=True):
         self.episodes = episodes
         
         process_list=[]
@@ -94,6 +94,8 @@ class ParallelFinder:
                                                         'processes': processes,
                                                         'processes_her': processes_her,
                                                         'processes_pr': processes_pr,
+                                                        'random': random,
+                                                        'num_updates': num_updates,
                                                         'callbacks': [callback],
                                                         'jit_compile': jit_compile,
                                                         'p': 0
@@ -127,6 +129,8 @@ class ParallelFinder:
                                                         'processes': processes,
                                                         'processes_her': processes_her,
                                                         'processes_pr': processes_pr,
+                                                        'random': random,
+                                                        'num_updates': num_updates,
                                                         'callbacks': [callback],
                                                         'jit_compile': jit_compile,
                                                         'p': 0
