@@ -452,6 +452,263 @@ model = MyModel(...)
 model.restore('model.dat')
 ```
 
+# RL.train:
+
+**Description**:
+Runs the main training loop for the `RL` agent. Supports single-process and multi-process experience collection via a **pool network**, distributed training strategies (Mirrored/MultiWorker/ParameterServer), just-in-time compilation for training steps, callbacks, and special replay mechanisms: Hindsight Experience Replay (HER), Prioritized Replay (PR) and PPO-compatible behavior. The method coordinates environment rollout(s), buffer aggregation, batch sampling, training updates, optional periodic trimming of replay buffers (via `window_size_fn` / `window_size_ppo`), logging and model saving.
+
+**Arguments**:
+
+* **`train_loss`** (`tf.keras.metrics.Metric`): Metric used to accumulate/report training loss (e.g. `tf.keras.metrics.Mean()`).
+* **`optimizer`** (`tf.keras.optimizers.Optimizer` or list): Optimizer (or list of optimizers) used to apply gradients. If `self.optimizer` is already set, the passed `optimizer` is only used to initialize `self.optimizer` (see code behaviour).
+* **`episodes`** (`int`, optional): Number of episodes to run. If `None`, training runs indefinitely (or until `self.stop_training` or reward criterion is met).
+* **`jit_compile`** (`bool`, optional, default=`True`): Whether to use `@tf.function(jit_compile=True)` compiled train steps. When True the compiled train-steps are used where available.
+* **`pool_network`** (`bool`, optional, default=`True`): Enable pool-network multi-process rollouts. When True, experiences are collected in parallel by `processes` worker processes and aggregated into shared (manager) buffers.
+* **`processes`** (`int`, optional): Number of parallel worker processes used when `pool_network=True` to collect experience.
+* **`processes_her`** (`int`, optional): When HER is enabled, number of processes used for HER batch generation. Affects internal multiprocessing logic and intermediate buffers.
+* **`processes_pr`** (`int`, optional): When PR is enabled, number of processes used for prioritized replay sampling. Affects internal multiprocessing logic and intermediate buffers.
+* **`window_size`** (`int`, optional): Fixed window size used when trimming per-process buffers inside `pool` / `store_in_parallel`. (If `None` uses default popping behavior.)
+* **`clearing_freq`** (`int`, optional): When set, triggers periodic trimming of per-process buffers every `clearing_freq` stored items.
+* **`window_size_`** (`int`, optional): A global fallback window size used in several trimming spots when buffers exceed `self.pool_size`.
+* **`window_size_ppo`** (`int`, optional): Default PPO-specific window trimming size used if `window_size_fn` is not supplied (used when `PPO == True` and `PR == True`).
+* **`random`** (`bool`, optional, default=`False`): When `pool_network=True`, toggles random worker selection vs. inverse-length selection logic used in `store_in_parallel`.
+* **`save_data`** (`bool`, optional, default=`True`): If True, keeps collected pool lists in shared manager lists to allow saving/resuming; otherwise per-process buffers are reinitialized each run.
+* **`p`** (`int`, optional): Controls the logging/printing frequency. If `p` is `None` a default of 9 is used (internally the implementation derives a logging interval). If `p == 0` the periodic logging block is disabled (the code contains `if p!=0` guards around prints).
+  *Implementation note:* The code transforms the user-supplied `p` into an internal `self.p` and a derived integer `p` that is used for printing interval computation (`p` becomes roughly the number of episodes between logs).
+
+**Returns**:
+
+* If running with `distributed_flag==True`: returns `(total_loss / num_batches).numpy()` (the average distributed loss for the epoch/batch group).
+* Otherwise: returns `train_loss.result().numpy()` (the metric's current value).
+* If early exit happens (e.g. `self.stop_training==True`), the function returns early (commonly the current `train_loss` value or `np.array(0.)` depending on branch).
+
+**Details**:
+
+1. **Initialization & manager setup**:
+
+   * If `pool_network=True`, a `multiprocessing.Manager()` is created and many local lists/buffers (`state_pool_list`, `action_pool_list`, `reward_pool_list`, etc.) are converted into manager lists/dicts so worker processes can append data safely.
+   * Per-process data structures (e.g. `self.ratio_list`, `self.TD_list`) are initialized if `PR==True`. When `PPO==True` and `PR==True` the code uses per-process `ratio_list` / `TD_list` and later concatenates them into `self.prioritized_replay` before training.
+
+2. **Callbacks & training lifecycle**:
+
+   * Calls `on_train_begin` on registered callbacks at the start.
+   * Per-episode: calls `on_episode_begin` and `on_episode_end` callbacks with logs including `'loss'` and `'reward'`.
+   * Per-batch: calls `on_batch_begin` / `on_batch_end` with batch logs (loss). This applies to both the PR/HER per-batch generation branches and the dataset-driven branches.
+   * Respects `self.stop_training` — if set True during training the method exits early and returns.
+
+3. **Experience collection**:
+
+   * When `pool_network=True` the function spawns `processes` worker processes (each runs `store_in_parallel`) to produce per-process pool lists, then `concatenate`s them (or packs them into `self.state_pool[7]` etc. when `processes_pr`/`processes_her` are used).
+   * If `processes_pr`/`processes_her` are set, special per-process lists (`self.state_list`, `self.action_list`, ...) are used for parallel sampling and later aggregated in `data_func()`.
+
+4. **Training procedure & batching**:
+
+   * Two main modes:
+
+     * **PR/HER path**: When `self.PR` or `self.HER` is `True`, batches are generated via `self.data_func()` (which may itself spawn worker processes to form batches). The loop iterates over `batches` computed from the pool length / `self.batch`. Each generated batch is turned into a small `tf.data.Dataset` (batched to `self.global_batch_size`) and then:
+
+       * If using a MirroredStrategy, the dataset is distributed and `distributed_train_step` or `_` is used.
+       * Else the code uses `train_step` / `train_step_` or directly the non-distributed loops.
+     * **Plain dataset path**: When not PR/HER, the code creates a `tf.data.Dataset` from the entire pool (`self.state_pool,...`) and iterates it as usual (shuffle when not `pool_network`), applying `train_step`/`train_step_` for each mini-batch.
+   * `self.batch_counter` and `self.step_counter` are used to decide when to call `self.update_param()` and (if PPO + PR) when to apply `window_size_fn` / `window_size_ppo` trimming to per-process buffers.
+
+5. **Distributed strategies**:
+
+   * Code supports `tf.distribute.MirroredStrategy`, `MultiWorkerMirroredStrategy` and `ParameterServerStrategy` integration:
+
+     * When MirroredStrategy is detected, datasets are distributed via `strategy.experimental_distribute_dataset` and `distributed_train_step` is used.
+     * For `MultiWorkerMirroredStrategy` a custom path calls `self.CTL` (user-defined) to compute loss over multiple workers.
+     * If a ParameterServerStrategy is used and `stop_training` triggers, the code may call `self.coordinator.join()` to sync workers and exit.
+
+6. **Priority replay (PR) & PPO interactions**:
+
+   * If `PR==True` and `PPO==True`, the training loop:
+
+     * Maintains per-process `ratio_list` / `TD_list` during collection.
+     * Concatenates them into `self.prioritized_replay.ratio` and `self.prioritized_replay.TD` before sampling/training.
+     * When `self.batch_counter % self.update_batches == 0` or `self.update_steps` triggers an update, the code attempts to call `self.window_size_fn(p)` (if provided) for each process and trims per-process buffers to the returned `window_size` (or uses `window_size_ppo` fallback). This enables adaptive trimming (e.g. driven by ESS).
+   * If `PR==True` but `PPO==False`, only `TD_list` is used/concatenated.
+
+7. **Saving & early stopping**:
+
+   * Periodic saving: if `self.path` is set and `i % self.save_freq == 0`, calls `save_param_` or `save_` depending on `self.save_param_only`. `max_save_files` and `save_best_only` can be used in your saving implementations (not implemented here).
+   * Reward-based termination: if `self.trial_count` and `self.criterion` are set, the method computes `avg_reward` over the most recent `trial_count` episodes and will terminate early when `avg_reward >= criterion`. It prints summary info (episode count, average reward, elapsed time) and returns.
+
+8. **Logging behavior**:
+
+   * The printed logs (loss/reward) are gated by the derived `p` logic. Passing `p==0` suppresses periodic printouts (there are many `if p!=0` guards around prints).
+   * The method always updates `self.loss_list`, `self.total_episode`, and `self.time` counters.
+
+9. **Return values & possible early-exit values**:
+
+   * On normal epoch/episode completion the method returns the computed train loss (distributed average or `train_loss.result().numpy()`).
+   * On early exit (stop\_training true or ParameterServer coordinator join) the method may return `np.array(0.)` or the current metric depending on branch.
+
+**Notes / Implementation caveats**:
+
+* The `p` parameter behavior is non-standard: if you want the default printing cadence, pass `p=None` (internally becomes 9). Pass `p=0` to disable periodic printing.
+* When `PR==True` and `PPO==True` the code expects per-process `ratio_list`/`TD_list` and relies on concatenation. Make sure those variables are initialized and that `self.window_size_fn` (if used) handles small buffer sizes (the user-provided `window_size_fn` should guard `len(weights) < 2`).
+* Be defensive around buffer sizes: many places assume `len(self.state_pool) >= self.batch`. During warm-up training you may see early returns if the pool is not yet filled.
+* The method mutates internal buffers when trimming; ensure that any external references to those buffers are updated if needed (they are manager lists/dicts in `pool_network` mode).
+* Callbacks are integrated; use them for logging, checkpointing, early stopping, or custom monitoring.
+
+# RL.distributed\_training
+
+**Description**
+Runs a distributed / multi-device training loop for the `RL` agent using TensorFlow `tf.distribute` strategies. It combines multi-process environment rollouts (pool network) with distributed model updates (MirroredStrategy / MultiWorkerMirroredStrategy) and supports special replay modes (Prioritized Replay `PR`, Hindsight ER `HER`) and PPO interactions. The method orchestrates rollout collection across OS processes, constructs aggregated replay buffers, builds distributed datasets, runs distributed train steps, calls callbacks, does periodic trimming (via `window_size_fn` / `window_size_ppo`), saving, and early stopping.
+
+---
+
+## Arguments
+
+* **`optimizer`** (`tf.keras.optimizers.Optimizer` or list): Optimizer(s) to apply gradients. If `self.optimizer` is `None` this will initialize `self.optimizer`.
+* **`strategy`** (`tf.distribute.Strategy`): A TensorFlow distribution strategy instance (e.g. `tf.distribute.MirroredStrategy`, `tf.distribute.MultiWorkerMirroredStrategy`) under whose scope distributed training is executed.
+* **`episodes`** (`int`, optional): Number of episodes to run (MirroredStrategy path). If `None` and `num_episodes` supplied, `num_episodes` may be used by some branches.
+* **`num_episodes`** (`int`, optional): Alternative name for `episodes` used by some strategy branches (e.g. MultiWorker path). If provided, it overrides/assigns `episodes`.
+* **`jit_compile`** (`bool`, optional, default=`True`): Whether to use JIT compiled train steps where available (`@tf.function(jit_compile=True)`).
+* **`pool_network`** (`bool`, optional, default=`True`): Enable multi-process environment rollouts (pool of worker processes).
+* **`processes`** (`int`, optional): Number of parallel worker processes to launch for rollouts when `pool_network=True`.
+* **`processes_her`** (`int`, optional): Number of worker processes dedicated for HER sampling (if `HER=True`).
+* **`processes_pr`** (`int`, optional): Number of worker processes dedicated for PR sampling (if `PR=True`).
+* **`window_size`** (`int`, optional): Fixed per-process trimming window used in collection logic.
+* **`clearing_freq`** (`int`, optional): Periodic trimming frequency (applies to per-process buffers).
+* **`window_size_`** (`int`, optional): Global fallback window used in some trimming branches.
+* **`window_size_ppo`** (`int`, optional): Default PPO window trimming fallback used if `window_size_fn` is not present (used with `PPO==True and PR==True`).
+* **`random`** (`bool`, optional, default=`False`): Controls per-process selection strategy in `store_in_parallel` (random vs. inverse-length selection).
+* **`save_data`** (`bool`, optional, default=`True`): Whether to persist per-process buffers to a `multiprocessing.Manager()` so they survive across processes and can be saved.
+* **`p`** (`int`, optional): Controls printing/logging frequency. If `None` an internal default is used (≈9). Passing `p==0` disables periodic printing. Internally the method transforms `p` to an interval used for logging.
+
+---
+
+## Returns
+
+* For MirroredStrategy / distributed branches: returns `(total_loss / num_batches).numpy()` when `distributed_flag==True` and that branch computes `total_loss / num_batches`.
+* Otherwise returns `train_loss.result().numpy()` (current metric value).
+* The function may return early (e.g. `self.stop_training==True` or when reward `criterion` is met). In early-exit cases the return value depends on the branch (commonly the current metric or `np.array(0.)`).
+
+---
+
+## Behaviour / Details
+
+1. **Distributed setup**
+
+   * The function sets `self.distributed_flag = True` and defines a `compute_loss` closure inside `strategy.scope()` that calls `tf.nn.compute_average_loss` with `global_batch_size=self.batch`. This is used by the distributed train step to scale per-example losses.
+   * It supports at least two strategy types explicitly:
+
+     * `tf.distribute.MirroredStrategy` — typical synchronous multi-GPU single-machine use; the function builds distributed datasets and uses `distributed_train_step`.
+     * `tf.distribute.MultiWorkerMirroredStrategy` — multi-worker synchronous training. The code follows a slightly different loop (uses `self.CTL` for loss aggregation in some branches).
+
+2. **Pool-network (multi-process rollouts)**
+
+   * If `pool_network=True` the method creates a `multiprocessing.Manager()` and converts `self.env` and many per-process lists into manager lists/dicts so worker processes can fill them concurrently.
+   * For `PR==True` and `PPO==True` it initializes per-process `ratio_list` and `TD_list` (as `tf.Variable` wrappers) and later concatenates them into `self.prioritized_replay.ratio` / `.TD` before training.
+   * Worker processes are launched using `mp.Process(target=self.store_in_parallel, args=(p, lock_list))` to collect rollouts. **Note:** the code references `lock_list` when launching workers in some branches but `lock_list` is not created in every branch of this function (this is an implementation caveat — see *Caveats*).
+
+3. **Data aggregation & sampling**
+
+   * When `processes_her` / `processes_pr` are provided, the code collects per-process mini-batches (`self.state_list`, `self.action_list`, etc.) and `data_func()` uses those to form training batches.
+   * When not using PR/HER, per-process pools are concatenated `np.concatenate(self.state_pool_list)` etc. to form the full `self.state_pool` which is turned into a `tf.data.Dataset`.
+
+4. **Training step selection**
+
+   * For Mirrored strategy: dataset is wrapped with `strategy.experimental_distribute_dataset()` and the loop calls `distributed_train_step` (JIT or non-JIT variant depending on `jit_compile`).
+   * For MultiWorker strategy: the code takes a different path and (in places) calls `self.CTL(multi_worker_dataset)` — a custom user-defined procedure expected to exist on the RL instance.
+   * For non-distributed branches fallback to `train1` / `train2` logic is reused.
+
+5. **PR / PPO interactions**
+
+   * If `PR` is enabled, per-process TD / ratio lists are concatenated into the prioritized replay object before sampling/training.
+   * If `PPO` + `PR` the method uses `window_size_fn` (if present) to compute adaptive trimming for each process and trims `state_pool_list[p]` etc. accordingly after update steps; otherwise it falls back to `window_size_ppo`.
+
+6. **Callbacks, saving, and early stopping**
+
+   * Calls callbacks: `on_train_begin`, `on_episode_begin`, `on_batch_begin`, `on_batch_end`, `on_episode_end`, `on_train_end` at appropriate points.
+   * Saves model / params periodically when `self.path` is set according to `self.save_freq`.
+   * If `self.trial_count` and `self.criterion` are set, computes a rolling average reward over recent episodes and stops training early if criterion is reached.
+
+---
+
+## Complexity & performance notes
+
+* Launching many OS processes for rollouts can be CPU- and memory- intensive. Use a sensible `processes` count per machine.
+* MirroredStrategy moves gradient application to devices — ensure your batch sizing and `global_batch_size` match your device count to avoid under/over-scaling.
+* `PR` requires additional memory for the `ratio`/`TD` arrays; be mindful when concatenating per-process lists.
+
+---
+
+## Caveats / Implementation notes (important)
+
+* **`lock_list` usage:** the function passes `lock_list` into `store_in_parallel` in several places but `lock_list` is not defined inside `distributed_training` before use. If you rely on locks to guard manager lists, make sure to construct `lock_list = [mp.Lock() for _ in range(processes)]` (as is done in the non-distributed `train` function) and pass it into the worker processes.
+* **Small buffer sizes:** many trimming and `window_size_fn` usages assume `len(weights) >= 2`. Guard `window_size_fn` and trimming calls against tiny buffers during warm-up.
+* **`self.CTL` and other user hooks:** The code calls `self.CTL(...)` in MultiWorker branches — ensure you implement this helper to compute the loss when using MultiWorker strategy.
+* **Return values vary by branch:** different strategy branches return different items (distributed average loss or metric result). Tests should validate the return path you use.
+
+# RL.adjust_window_size:
+
+**Description**:
+Compute an adaptive experience-replay window size based on the *effective sample size* (ESS) of the prioritized weights. This function estimates how many recent experiences should be kept (vs. discarded) by converting the ESS into a desired number of kept samples, applying optional exponential moving average (EMA) smoothing to the ESS, and returning the number of oldest entries to drop (the window size). It supports both single-process and pool-network (multi-process) setups.
+
+**Arguments**:
+
+* **`p`** (`int`): Process index when `pool_network=True`. Selects which sub-pool's weight vector to evaluate. If `pool_network=False`, `p` is ignored.
+* **`scale`** (`float`, optional, default=`1.0`): Multiplier applied to the (smoothed) ESS to compute the desired number of samples to keep. Values >1 increase the kept size (smaller window), values <1 decrease it (larger window).
+* **`smooth_alpha`** (`float`, optional, default=`0.2`): EMA smoothing coefficient in `[0,1]` used to smooth ESS over time. Higher values weight the newest ESS more; lower values emphasize past ESS.
+
+**Returns**:
+
+* **`window_size`** (`int`): Suggested number of oldest samples to remove from the experience pool. Computed as `len(weights) - desired_keep`. Guaranteed to be a non-negative integer under normal conditions (see Notes).
+
+**Details**:
+
+1. **Choose source of weights**:
+
+   * If `self.pool_network == True` the function reads `weights = np.array(self.ratio_list[p])` — the per-process ratio array used for prioritized sampling in that sub-pool.
+   * If `self.pool_network == False` the function reads `weights = np.array(self.prioritized_replay.ratio)` — the global prioritized weights array.
+
+2. **Compute ESS**:
+
+   * Calls `self.compute_ess_from_weights(weights)`, which:
+
+     * clips weights to a minimum positive value (to avoid zeros),
+     * normalizes them to a probability vector `p`,
+     * computes ESS as `1 / sum(p^2)`.
+   * ESS is a continuous estimate of how many “effective” independent samples exist given the weight distribution.
+
+3. **EMA smoothing**:
+
+   * The function stores smoothed ESS in `self.ema_ess`.
+   * For `pool_network==True`, `self.ema_ess` is a list and `self.ema_ess[p]` is updated. For single-process mode it is a scalar.
+   * New smoothed ESS is `ema = smooth_alpha * ess + (1.0 - smooth_alpha) * prev_ema` (or `ema = ess` if no prior EMA exists).
+
+4. **Desired kept samples and window size**:
+
+   * `desired_keep = np.clip(int(ema * scale), 1, len(weights) - 1)`
+
+     * Intuition: convert (smoothed) ESS to an integer number of samples to keep, optionally scaled.
+     * The clip prevents degeneracy by requiring at least one sample kept and at most `len(weights)-1`.
+   * `window_size = len(weights) - desired_keep`
+
+     * This is the number of oldest entries to remove; the caller can then slice arrays like `state_pool = state_pool[window_size:]`.
+
+5. **Side effects**:
+
+   * Updates `self.ema_ess` (or `self.ema_ess[p]`) with the new smoothed ESS value.
+   * Does **not** modify replay buffers or ratio/TD arrays — it only returns the window size. The caller is responsible for actually removing entries.
+
+6. **Assumptions & edge cases**:
+
+   * The function assumes `weights` has length ≥ 2. If `len(weights) <= 1` the code `np.clip(..., 1, len(weights)-1)` may produce an invalid clip range (upper < lower) and raise a `ValueError` or produce unexpected results. It is recommended to guard against this by checking `len(weights)` before calling (or adding a small wrapper).
+   * If weights contain zeros or extremely small values, `compute_ess_from_weights` already protects against divide-by-zero by clipping to a small positive minimum.
+
+7. **Complexity**:
+
+   * Time complexity is O(n) where n is the number of weights (dominant cost is computing ESS).
+
+**Usage Example**:
+
+https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/keras/pool_network/PPO_pr.py
+https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/pytorch/pool_network/PPO_pr.py
+
 # LRFinder:
 **Usage:**
 
