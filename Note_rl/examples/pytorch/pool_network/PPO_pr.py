@@ -91,6 +91,7 @@ class PPO(RL_pytorch):
         clip_loss = clip_loss - self.alpha * entropy
         
         loss = torch.mean(clip_loss) + torch.mean(TD ** 2)
+        self.prioritized_replay.update(TD,ratio)
         return loss
 
     def update_param(self):
