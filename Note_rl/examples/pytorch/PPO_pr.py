@@ -133,6 +133,7 @@ class PPO(RL_pytorch):
         controller_loss = -torch.mean(m * score)  # scalar
 
         loss = torch.mean(clip_loss) + torch.mean(TD ** 2) + controller_loss
+        self.prioritized_replay.update(TD,ratio)
         return loss
 
     def update_param(self):
