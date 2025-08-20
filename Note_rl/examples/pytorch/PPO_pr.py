@@ -75,9 +75,13 @@ class PPO(RL_pytorch):
         return probs
 
     def window_size_fn(self):
-        score = torch.sum(torch.abs(self.prioritized_replay.ratio - 1.0))
-        ess = (torch.sum(self.prioritized_replay.ratio) ** 2) / (torch.sum(self.prioritized_replay.ratio * self.prioritized_replay.ratio) + 1e-8)
-        features = torch.reshape(torch.stack([score, ess]), (1, 2)).to(self.device)
+        ratio_score = torch.sum(torch.abs(self.prioritized_replay.ratio-1.0))
+        td_score = torch.sum(self.prioritized_replay.TD)
+        scores = self.lambda_ * self.prioritized_replay.TD + (1.0-self.lambda_) * torch.abs(self.prioritized_replay.ratio - 1.0)
+        weights = torch.pow(scores + 1e-7, self.alpha)
+        p = weights / (torch.sum(weights))
+        ess = 1.0 / (torch.sum(p * p))
+        features = torch.reshape(torch.stack([ratio_score, td_score, ess]), (1,3)).to(self.device)
         mn = torch.min(features)
         mx = torch.max(features)
         features = (features - mn) / (mx - mn + 1e-8)
@@ -118,9 +122,14 @@ class PPO(RL_pytorch):
         entropy = action_prob * torch.log(action_prob + 1e-8)  # (batch,)
         clip_loss = clip_loss - self.alpha * entropy
 
-        score = torch.sum(torch.abs(self.prioritized_replay.ratio - 1.0))  # scalar tensor
-        ess = (torch.sum(self.prioritized_replay.ratio) ** 2) / (torch.sum(self.prioritized_replay.ratio * self.prioritized_replay.ratio) + 1e-8)
-        features = torch.reshape(torch.stack([score, ess]), (1, 2))
+        ratio_score = torch.sum(torch.abs(self.prioritized_replay.ratio-1.0))
+        td_score = torch.sum(self.prioritized_replay.TD)
+        score = ratio_score + td_score
+        scores = self.lambda_ * self.prioritized_replay.TD + (1.0-self.lambda_) * torch.abs(self.prioritized_replay.ratio - 1.0)
+        weights = torch.pow(scores + 1e-7, self.alpha)
+        p = weights / (torch.sum(weights))
+        ess = 1.0 / (torch.sum(p * p))
+        features = torch.reshape(torch.stack([ratio_score, td_score, ess]), (1,3))
         mn = torch.min(features)
         mx = torch.max(features)
         features = (features - mn) / (mx - mn + 1e-8)
@@ -133,6 +142,75 @@ class PPO(RL_pytorch):
         controller_loss = -torch.mean(m * score)  # scalar
 
         loss = torch.mean(clip_loss) + torch.mean(TD ** 2) + controller_loss
+        self.prioritized_replay.update(TD,ratio)
+        return loss
+
+    def update_param(self):
+        self.actor_old.load_state_dict(self.actor.state_dict())
+        return
+
+
+class PPO_(RL_pytorch):
+    def __init__(self, state_dim, hidden_dim, action_dim, clip_eps, alpha, processes, gamma=0.98, device=None):
+        super().__init__()
+        self.device = device or torch.device('cpu')
+        self.actor = Actor(state_dim, hidden_dim, action_dim).to(self.device)
+        self.actor_old = Actor(state_dim, hidden_dim, action_dim).to(self.device)
+        self.actor_old.load_state_dict(self.actor.state_dict())
+        self.critic = Critic(state_dim, hidden_dim).to(self.device)
+
+        self.clip_eps = clip_eps
+        self.alpha = alpha
+        self.gamma = gamma
+
+        self.param = [self.actor.parameters(), self.critic.parameters(), self.controller.parameters()]
+
+        # env
+        self.env = [gym.make('CartPole-v0') for _ in range(processes)]
+
+    def action(self, s):
+        # s: torch.Tensor on device, shape (batch, state_dim) or (state_dim,)
+        with torch.no_grad():
+            probs = self.actor_old(s.to(self.device))
+        return probs
+
+    def window_size_fn(self):
+        return self.adjust_window_size()
+
+    def __call__(self, s, a, next_s, r, d):
+        s = s.to(self.device)
+        next_s = next_s.to(self.device)
+        a = a.to(self.device).long().view(-1, 1)          # (batch,1)
+        r = r.to(self.device).float().view(-1, 1)        # (batch,1)
+        d = d.to(self.device).float().view(-1, 1)        # (batch,1)
+
+        # actor probabilities
+        probs = self.actor(s)            # (batch, action_dim)
+        probs_old = self.actor_old(s)    # (batch, action_dim)
+
+        # gather action probs
+        action_prob = probs.gather(1, a).squeeze(1)      # (batch,)
+        action_prob_old = probs_old.gather(1, a).squeeze(1)  # (batch,)
+
+        # ratio
+        ratio = action_prob / (action_prob_old + 1e-8)   # (batch,)
+
+        # value and target
+        value = self.critic(s).squeeze(1)             # (batch,)
+        value_next = self.critic(next_s).squeeze(1)   # (batch,)
+        value_tar = r.squeeze(1) + self.gamma * value_next * (1.0 - d.squeeze(1))
+        TD = value_tar - value                        # (batch,)
+
+        # surrogate losses
+        sur1 = ratio * TD
+        sur2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * TD
+        # elementwise minimum
+        clip_loss = -torch.min(sur1, sur2)            # (batch,)
+
+        entropy = action_prob * torch.log(action_prob + 1e-8)  # (batch,)
+        clip_loss = clip_loss - self.alpha * entropy
+        
+        loss = torch.mean(clip_loss) + torch.mean(TD ** 2)
         self.prioritized_replay.update(TD,ratio)
         return loss
 
