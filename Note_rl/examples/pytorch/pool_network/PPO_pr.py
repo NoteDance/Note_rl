@@ -33,13 +33,13 @@ class Critic(nn.Module):
 class Controller(nn.Module):
     def __init__(self, hidden=32, temp=10.0):
         super().__init__()
-        self.fc1 = nn.Linear(2, hidden)
+        self.fc1 = nn.Linear(4, hidden)
         self.fc2 = nn.Linear(hidden, 1)
         self.max_w = None
         self.temp = temp
 
     def forward(self, features):
-        # features: (1,2) tensor
+        # features: (1,4) tensor
         x = F.relu(self.fc1(features))
         alpha = torch.sigmoid(self.fc2(x))  # (1,1)
         if self.max_w is None:
