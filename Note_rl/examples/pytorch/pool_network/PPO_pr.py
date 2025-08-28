@@ -33,13 +33,13 @@ class Critic(nn.Module):
 class Controller(nn.Module):
     def __init__(self, hidden=32, temp=10.0):
         super().__init__()
-        self.fc1 = nn.Linear(4, hidden)
+        self.fc1 = nn.Linear(2, hidden)
         self.fc2 = nn.Linear(hidden, 1)
         self.max_w = None
         self.temp = temp
 
     def forward(self, features):
-        # features: (1,4) tensor
+        # features: (1,2) tensor
         x = F.relu(self.fc1(features))
         alpha = torch.sigmoid(self.fc2(x))  # (1,1)
         if self.max_w is None:
@@ -71,6 +71,9 @@ class PPO(RL_pytorch):
         with torch.no_grad():
             probs = self.actor_old(s.to(self.device))
         return probs
+    
+    def window_size(self, p):
+        return self.adjust_window_size(p)
 
     def window_size_fn(self, p):
         return self.adjust_window_size(p)
@@ -142,6 +145,21 @@ class PPO_(RL_pytorch):
         with torch.no_grad():
             probs = self.actor_old(s.to(self.device))
         return probs
+    
+    def window_size(self, p):
+        ratio_score = torch.sum(torch.abs(self.prioritized_replay.ratio_list[p]-1.0))
+        td_score = torch.sum(self.prioritized_replay.TD_list[p])
+        scores = self.lambda_ * self.prioritized_replay.TD_list[p] + (1.0-self.lambda_) * torch.abs(self.prioritized_replay.ratio_list[p] - 1.0)
+        weights = torch.pow(scores + 1e-7, self.alpha)
+        p = weights / (torch.sum(weights))
+        ess = 1.0 / (torch.sum(p * p))
+        features = torch.reshape(torch.stack([ratio_score, td_score, ess, self.prioritized_replay.ratio.shape[0]]), (1,4)).to(self.device)
+        mn = torch.min(features)
+        mx = torch.max(features)
+        features = (features - mn) / (mx - mn + 1e-8)
+        self.controller.max_w = self.prioritized_replay.ratio_list[p].shape[0]
+        w = self.controller(features)
+        return w
 
     def window_size_fn(self, p):
         ratio_score = torch.sum(torch.abs(self.prioritized_replay.ratio_list[p]-1.0))
