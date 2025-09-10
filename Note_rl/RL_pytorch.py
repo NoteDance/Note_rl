@@ -1,8 +1,8 @@
 import torch
 from torch.utils.data import DataLoader
 import multiprocessing as mp
-from Note.RL import rl
-from Note.RL.rl.prioritized_replay import pr
+import Note_rl.policy as Policy
+import Note_rl.prioritized_replay.pr as pr
 from multiprocessing import Array
 import numpy as np
 import numpy.ctypeslib as npc
@@ -200,19 +200,19 @@ class RL_pytorch:
             else:
                 output=output[1].numpy()
             output=np.squeeze(output, axis=0)
-            if isinstance(self.policy, rl.SoftmaxPolicy):
+            if isinstance(self.policy, Policy.SoftmaxPolicy):
                 a=self.policy.select_action(len(output), output)
-            elif isinstance(self.policy, rl.EpsGreedyQPolicy):
+            elif isinstance(self.policy, Policy.EpsGreedyQPolicy):
                 a=self.policy.select_action(output)
-            elif isinstance(self.policy, rl.AdaptiveEpsGreedyPolicy):
+            elif isinstance(self.policy, Policy.AdaptiveEpsGreedyPolicy):
                 a=self.policy.select_action(output, self.step_counter)
-            elif isinstance(self.policy, rl.GreedyQPolicy):
+            elif isinstance(self.policy, Policy.GreedyQPolicy):
                 a=self.policy.select_action(output)
-            elif isinstance(self.policy, rl.BoltzmannQPolicy):
+            elif isinstance(self.policy, Policy.BoltzmannQPolicy):
                 a=self.policy.select_action(output)
-            elif isinstance(self.policy, rl.MaxBoltzmannQPolicy):
+            elif isinstance(self.policy, Policy.MaxBoltzmannQPolicy):
                 a=self.policy.select_action(output)
-            elif isinstance(self.policy, rl.BoltzmannGumbelQPolicy):
+            elif isinstance(self.policy, Policy.BoltzmannGumbelQPolicy):
                 a=self.policy.select_action(output, self.step_counter)
         elif self.noise!=None:
             if self.IRL!=True:
@@ -795,8 +795,8 @@ class RL_pytorch:
             s=next_s
             if (self.num_steps!=None and counter%self.num_steps==0) or (self.num_steps!=None and done):
                 s=next_s_
-    
-    
+            
+            
     def prepare(self, lock_list):
         process_list=[]
         if self.PPO:
