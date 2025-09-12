@@ -77,6 +77,11 @@ class PPO(RL_pytorch):
 
     def window_size_fn(self, p):
         return self.adjust_window_size(p)
+    
+    def batch_size_fn(self):
+        if self.batch_counter%777:
+            return self.adjust_batch_size()
+        return self.adjust_batch_size()
 
     def __call__(self, s, a, next_s, r, d):
         s = s.to(self.device)
@@ -175,6 +180,11 @@ class PPO_(RL_pytorch):
         self.controller.max_w = self.prioritized_replay.ratio_list[p].shape[0]
         w = self.controller(features)
         return w
+    
+    def batch_size_fn(self):
+        if self.batch_counter%777:
+            return self.adjust_batch_size()
+        return self.adjust_batch_size()
 
     def __call__(self, s, a, next_s, r, d):
         s = s.to(self.device)
