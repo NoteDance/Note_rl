@@ -709,6 +709,61 @@ Compute an adaptive experience-replay window size based on the *effective sample
 https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/keras/pool_network/PPO_pr.py
 https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/pytorch/pool_network/PPO_pr.py
 
+# RL.adjust\_batch\_size:
+
+**Description**:
+Compute and return an adaptive mini-batch size based on the effective sample size (ESS) derived from replay-buffer weights. The method converts TD-errors (and, for PPO, a ratio-deviation term) into sampling weights, computes ESS, smooths ESS via an exponential moving average (EMA), and maps the smoothed ESS to a new batch size. The result is clipped to a sensible range and aligned to a specified multiple so that it fits training constraints.
+
+**Arguments**:
+
+* **`scale`** (`float`, optional, default=`1.0`): Scaling factor that maps ESS to batch size. Larger `scale` tends to produce larger batches.
+* **`smooth_alpha`** (`float`, optional, default=`0.2`): Smoothing coefficient for the EMA of ESS (weight given to the new ESS). Range usually (0, 1).
+* **`min_batch`** (`int`, optional): Minimum allowed batch size. If `None`, the function uses `max(1, self.batch // 2)` as the minimum.
+* **`max_batch`** (`int`, optional): Maximum allowed batch size. If `None`, defaults to `max(1, len(weights))` (buffer length).
+* **`align`** (`int`, optional): Returned batch size will be rounded down to be a multiple of `align` (i.e., `new_batch % align == 0`). If `None`, defaults to the current `self.batch`.
+
+**Returns**:
+
+* **`int`** — The computed, constrained, and aligned batch size (≥ 1 and ≤ buffer length).
+
+**Details / Algorithm**:
+
+1. **Weight computation**:
+
+   * If `PPO` is enabled: compute `scores = self.lambda_ * TD + (1.0 - self.lambda_) * |ratio - 1.0|`, then `weights = (scores + 1e-7) ** self.alpha`.
+   * Otherwise: `weights = (TD + 1e-7) ** self.alpha`.
+   * `TD` and `ratio` are taken from `self.prioritized_replay`.
+
+2. **Effective Sample Size (ESS)**:
+
+   * Call `compute_ess_from_weights(weights)` to compute ESS robustly (the function normalizes weights and protects against numerical issues).
+
+3. **EMA smoothing**:
+
+   * Update EMA: `ema = smooth_alpha * ess + (1 - smooth_alpha) * prev_ema` (stored in `self.ema_ess`). here the method uses the stored EMA for the relevant scope.
+
+4. **Map ESS → batch size**:
+
+   * Candidate `batch = round(ema * scale)`, clamped to at least 1.
+   * Clip `batch` to `[min_batch, max_batch]`.
+   * Align the batch: `new_batch = batch - (batch % align)` and ensure `new_batch >= 1`.
+   * Finally, cap `new_batch` at the buffer length `len(weights)`.
+
+5. **Return**:
+
+   * Return `int(new_batch)` ready to be used as the next training batch size.
+
+**Edge Cases & Notes**:
+
+* If the replay buffer is empty (`len(weights) == 0`) the function may raise an error or produce invalid output. Ensure the buffer contains samples before calling this method.
+* `align` should be chosen to match training constraints (for example, hardware/device parallelization, `self.batch`, or `self.global_batch_size`). Poor alignment choices may lead to unusable batch sizes.
+* If the buffer is smaller than `align`, the returned batch will be limited to the buffer length (still ≥ 1).
+
+**Usage Example**:
+
+https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/keras/pool_network/PPO_pr.py
+https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/pytorch/pool_network/PPO_pr.py
+
 # LRFinder:
 **Usage:**
 
