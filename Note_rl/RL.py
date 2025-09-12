@@ -1003,6 +1003,10 @@ class RL:
                 self.next_state_pool=self.action_pool[idx]
                 self.reward_pool=self.action_pool[idx]
                 self.done_pool=self.action_pool[idx]
+            if (self.num_steps==None and done) or (self.num_steps!=None and done_):
+                if len(self.state_pool)<self.batch:
+                    s=self.env_(initial=True)
+                    continue
             loss=self.train1(train_loss,optimizer)
             if not self.PR and self.num_updates!=None:
                 self.state_pool=state_pool
@@ -1014,9 +1018,6 @@ class RL:
                 self.reward_list.append(self.reward)
                 if len(self.reward_list)>self.trial_count:
                     del self.reward_list[0]
-                if len(self.state_pool)<self.batch:
-                    s=self.env_(initial=True)
-                    continue
                 return loss
             s=next_s
             if (self.num_steps!=None and counter%self.num_steps==0) or (self.num_steps!=None and done):
