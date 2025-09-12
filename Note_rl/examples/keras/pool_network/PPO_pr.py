@@ -66,6 +66,11 @@ class PPO(RL):
     def window_size_fn(self,p):
         return self.adjust_window_size(p)
     
+    def batch_size_fn(self):
+        if self.batch_counter%777:
+            return self.adjust_batch_size()
+        return self.adjust_batch_size()
+    
     def __call__(self,s,a,next_s,r,d):
         a=tf.expand_dims(a,axis=1)
         action_prob=tf.gather(self.actor(s),a,axis=1,batch_dims=1)
@@ -124,6 +129,11 @@ class PPO_(RL):
         features = tf.reshape([ratio_score, td_score, ess, len(self.prioritized_replay.ratio)], (1,4))
         features = (features - tf.reduce_min(features)) / (tf.reduce_max(features) - tf.reduce_min(features) + 1e-8)
         return self.controller(features)
+    
+    def batch_size_fn(self):
+        if self.batch_counter%777:
+            return self.adjust_batch_size()
+        return self.adjust_batch_size()
     
     def __call__(self,s,a,next_s,r,d):
         a=tf.expand_dims(a,axis=1)
