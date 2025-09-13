@@ -85,7 +85,7 @@ class PPO(RL):
         return self.controller(features)
     
     def batch_size_fn(self):
-        if self.step_counter%777:
+        if self.step_counter%777 or self.step_counter%self.update_steps==0:
             return self.adjust_batch_size()
         return self.adjust_batch_size()
     
@@ -147,7 +147,7 @@ class PPO_(RL):
         return self.adjust_window_size()
     
     def batch_size_fn(self):
-        if self.step_counter%777:
+        if self.step_counter%777 or self.step_counter%self.update_steps==0:
             return self.adjust_batch_size()
         return self.adjust_batch_size()
     
