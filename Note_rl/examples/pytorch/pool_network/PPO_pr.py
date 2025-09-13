@@ -79,7 +79,7 @@ class PPO(RL_pytorch):
         return self.adjust_window_size(p)
     
     def batch_size_fn(self):
-        if self.batch_counter%777:
+        if self.batch_counter%777 or self.batch_counter%self.update_batches==0:
             return self.adjust_batch_size()
         return self.adjust_batch_size()
 
@@ -182,7 +182,7 @@ class PPO_(RL_pytorch):
         return w
     
     def batch_size_fn(self):
-        if self.batch_counter%777:
+        if self.batch_counter%777 or self.batch_counter%self.update_batches==0:
             return self.adjust_batch_size()
         return self.adjust_batch_size()
 
