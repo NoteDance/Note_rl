@@ -348,6 +348,68 @@ class RL:
         return int(new_batch)
     
     
+    @tf.function(jit_compile=True)
+    def estimate_gradient_variance(self, batch_size, num_samples):
+        grads = []
+        idx = np.random.choice(self.state_pool.shape[0], size=batch_size, replace=False)
+        if self.processes_her==None and self.processes_pr==None:
+            s=self.state_pool[idx]
+            a=self.action_pool[idx]
+            next_s=self.next_state_pool[idx]
+            r=self.reward_pool[idx]
+            d=self.done_pool[idx]
+        else:
+            s=self.state_pool[7][idx]
+            a=self.action_pool[7][idx]
+            next_s=self.next_state_pool[7][idx]
+            r=self.reward_pool[7][idx]
+            d=self.done_pool[7][idx]
+    
+        for _ in range(num_samples):
+            with tf.GradientTape() as tape:
+                loss = self.__call__(s, a, next_s, r, d)
+            gradients = tape.gradient(loss, self.param)
+            grad_flat = tf.concat([tf.reshape(grad, [-1]) for grad in gradients], axis=0)
+            grads.append(grad_flat)
+    
+        grads = tf.stack(grads)
+        mean_grad = tf.reduce_mean(grads, axis=0)
+        variance = tf.reduce_mean((grads - mean_grad) ** 2)
+        return variance
+    
+    
+    def adabatch(self, batch_size, num_samples, target_noise=1e-3, scale=1.0, smooth_alpha=0.2, min_batch=None, max_batch=None, align=None):
+        single_var = self.estimate_gradient_variance(batch_size, num_samples)
+        
+        estimated_noise = single_var / self.batch
+        
+        if self.ema_noise is None:
+            ema_noise = estimated_noise
+        else:
+            ema_noise = smooth_alpha * estimated_noise + (1 - smooth_alpha) * self.ema_noise
+        self.ema_noise = ema_noise
+        
+        base_new_batch = int(round(self.batch * (target_noise / ema_noise) * scale))
+        new_batch = int(np.clip(base_new_batch, min_batch, max_batch))
+        
+        if self.processes_her==None and self.processes_pr==None:
+            buf_len = len(self.state_pool)
+        else:
+            buf_len = len(self.state_pool[7])
+        if min_batch is None:
+            cur_batch = self.batch
+            min_batch = max(1, cur_batch // 2)
+        if max_batch is None:
+            max_batch = max(1, buf_len)
+        
+        if align is None:
+            align = self.batch
+        new_batch = new_batch - (new_batch % align)
+        new_batch = max(1, min(new_batch, max_batch))
+        
+        return new_batch
+    
+    
     def data_func(self):
         if self.PR:
             if self.processes_pr!=None:
@@ -529,6 +591,8 @@ class RL:
         else:
             batch = 0
             while self.step_in_epoch < num_steps_per_episode:
+                if self.num_updates!=None and self.batch_counter%self.num_updates==0:
+                    break
                 for callback in self.callbacks:
                     if hasattr(callback, 'on_batch_begin'):
                         callback.on_batch_begin(batch, logs={})
@@ -555,6 +619,36 @@ class RL:
                                 self.next_state_pool_list[p]=None
                                 self.reward_pool_list[p]=None
                                 self.done_pool_list[p]=None
+                    if hasattr(self, 'batch_size_fn') and len(self.state_pool)>=self.pool_size_:
+                        self.batch = self.batch_size_fn()
+                        if self.num_updates!=None and self.batch_counter%self.update_batches==0:
+                            if self.processes_her==None and self.processes_pr==None:
+                                self.state_pool=np.concatenate(self.state_pool_list)
+                                self.action_pool=np.concatenate(self.action_pool_list)
+                                self.next_state_pool=np.concatenate(self.next_state_pool_list)
+                                self.reward_pool=np.concatenate(self.reward_pool_list)
+                                self.done_pool=np.concatenate(self.done_pool_list)
+                                idx=np.random.choice(self.state_pool.shape[0], size=self.num_updates*self.batch, replace=False)
+                                self.state_pool=self.state_pool[idx]
+                                self.action_pool=self.action_pool[idx]
+                                self.next_state_pool=self.next_state_pool[idx]
+                                self.reward_pool=self.reward_pool[idx]
+                                self.done_pool=self.done_pool[idx]
+                                train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
+                                multi_worker_dataset = self.strategy.distribute_datasets_from_function(
+                                        lambda input_context: self.dataset_fn(train_ds, self.batch, input_context)) 
+                            else:
+                                self.state_pool[7]=np.concatenate(self.state_pool_list)
+                                self.action_pool[7]=np.concatenate(self.action_pool_list)
+                                self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
+                                self.reward_pool[7]=np.concatenate(self.reward_pool_list)
+                                self.done_pool[7]=np.concatenate(self.done_pool_list)
+                                idx=np.random.choice(self.state_pool.shape[0], size=self.num_updates*self.batch, replace=False)
+                                self.state_pool[7]=self.state_pool[7][idx]
+                                self.action_pool[7]=self.action_pool[7][idx]
+                                self.next_state_pool[7]=self.next_state_pool[7][idx]
+                                self.reward_pool[7]=self.reward_pool[7][idx]
+                                self.done_pool[7]=self.done_pool[7][idx]
                 if self.stop_training==True:
                     return total_loss,num_batches
             return total_loss,num_batches
@@ -572,12 +666,10 @@ class RL:
             for j in range(batches):
                 if self.stop_training==True:
                     if self.distributed_flag==True:
-                        if isinstance(self.strategy,tf.distribute.ParameterServerStrategy):
-                            self.coordinator.join()
                         return np.array(0.)
                     else:
                         return train_loss.result().numpy()
-                if self.batch_counter%self.num_updates==0:
+                if self.num_updates!=None and self.batch_counter%self.num_updates==0:
                     break
                 for callback in self.callbacks:
                     if hasattr(callback, 'on_batch_begin'):
@@ -696,12 +788,10 @@ class RL:
             if len(self.state_pool)%self.batch!=0:
                 if self.stop_training==True:
                     if self.distributed_flag==True:
-                        if isinstance(self.strategy,tf.distribute.ParameterServerStrategy):
-                            self.coordinator.join()
                         return np.array(0.)
                     else:
                         return train_loss.result().numpy() 
-                if self.batch_counter%self.num_updates==0:
+                if self.num_updates!=None and self.batch_counter%self.num_updates==0:
                     if self.distributed_flag==True:
                         return (total_loss / num_batches).numpy()
                     else:
@@ -825,17 +915,20 @@ class RL:
                 if self.pool_network==True:
                     train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch_size)
                 else:
-                    train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.batch)
+                    if self.num_updates!=None:
+                        train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
+                    else:
+                        train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.batch)
                 if isinstance(self.strategy,tf.distribute.MirroredStrategy):
                     train_ds=self.strategy.experimental_distribute_dataset(train_ds)
                     for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
                         if self.stop_training==True:
                             if self.distributed_flag==True:
-                                if isinstance(self.strategy,tf.distribute.ParameterServerStrategy):
-                                    self.coordinator.join()
                                 return np.array(0.)
                             else:
                                 return train_loss.result().numpy() 
+                        if self.num_updates!=None and self.batch_counter%self.num_updates==0:
+                            break
                         for callback in self.callbacks:
                             if hasattr(callback, 'on_batch_begin'):
                                 callback.on_batch_begin(batch, logs={})
@@ -861,6 +954,34 @@ class RL:
                                         self.next_state_pool_list[p]=None
                                         self.reward_pool_list[p]=None
                                         self.done_pool_list[p]=None
+                            if hasattr(self, 'batch_size_fn') and len(self.state_pool)>=self.pool_size_:
+                                self.batch = self.batch_size_fn()
+                                if self.num_updates!=None and self.batch_counter%self.update_batches==0:
+                                    if self.processes_her==None and self.processes_pr==None:
+                                        self.state_pool=np.concatenate(self.state_pool_list)
+                                        self.action_pool=np.concatenate(self.action_pool_list)
+                                        self.next_state_pool=np.concatenate(self.next_state_pool_list)
+                                        self.reward_pool=np.concatenate(self.reward_pool_list)
+                                        self.done_pool=np.concatenate(self.done_pool_list)
+                                        idx=np.random.choice(self.state_pool.shape[0], size=self.num_updates*self.batch, replace=False)
+                                        self.state_pool=self.state_pool[idx]
+                                        self.action_pool=self.action_pool[idx]
+                                        self.next_state_pool=self.next_state_pool[idx]
+                                        self.reward_pool=self.reward_pool[idx]
+                                        self.done_pool=self.done_pool[idx]
+                                        train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
+                                    else:
+                                        self.state_pool[7]=np.concatenate(self.state_pool_list)
+                                        self.action_pool[7]=np.concatenate(self.action_pool_list)
+                                        self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
+                                        self.reward_pool[7]=np.concatenate(self.reward_pool_list)
+                                        self.done_pool[7]=np.concatenate(self.done_pool_list)
+                                        idx=np.random.choice(self.state_pool.shape[0], size=self.num_updates*self.batch, replace=False)
+                                        self.state_pool[7]=self.state_pool[7][idx]
+                                        self.action_pool[7]=self.action_pool[7][idx]
+                                        self.next_state_pool[7]=self.next_state_pool[7][idx]
+                                        self.reward_pool[7]=self.reward_pool[7][idx]
+                                        self.done_pool[7]=self.done_pool[7][idx]
                 elif isinstance(self.strategy,tf.distribute.MultiWorkerMirroredStrategy):
                     with self.strategy.scope():
                         multi_worker_dataset = self.strategy.distribute_datasets_from_function(
@@ -870,10 +991,15 @@ class RL:
                 if self.pool_network==True:
                     train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch_size)
                 else:
-                    train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.batch)
+                    if self.num_updates!=None:
+                        train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
+                    else:
+                        train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.batch)
                 for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
                     if self.stop_training==True:
                         return train_loss.result().numpy() 
+                    if self.num_updates!=None and self.batch_counter%self.num_updates==0:
+                        break
                     for callback in self.callbacks:
                         if hasattr(callback, 'on_batch_begin'):
                             callback.on_batch_begin(batch, logs={})
@@ -898,6 +1024,34 @@ class RL:
                                     self.next_state_pool_list[p]=None
                                     self.reward_pool_list[p]=None
                                     self.done_pool_list[p]=None
+                        if hasattr(self, 'batch_size_fn') and len(self.state_pool)>=self.pool_size_:
+                            self.batch = self.batch_size_fn()
+                            if self.num_updates!=None and self.batch_counter%self.update_batches==0:
+                                if self.processes_her==None and self.processes_pr==None:
+                                    self.state_pool=np.concatenate(self.state_pool_list)
+                                    self.action_pool=np.concatenate(self.action_pool_list)
+                                    self.next_state_pool=np.concatenate(self.next_state_pool_list)
+                                    self.reward_pool=np.concatenate(self.reward_pool_list)
+                                    self.done_pool=np.concatenate(self.done_pool_list)
+                                    idx=np.random.choice(self.state_pool.shape[0], size=self.num_updates*self.batch, replace=False)
+                                    self.state_pool=self.state_pool[idx]
+                                    self.action_pool=self.action_pool[idx]
+                                    self.next_state_pool=self.next_state_pool[idx]
+                                    self.reward_pool=self.reward_pool[idx]
+                                    self.done_pool=self.done_pool[idx]
+                                    train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
+                                else:
+                                    self.state_pool[7]=np.concatenate(self.state_pool_list)
+                                    self.action_pool[7]=np.concatenate(self.action_pool_list)
+                                    self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
+                                    self.reward_pool[7]=np.concatenate(self.reward_pool_list)
+                                    self.done_pool[7]=np.concatenate(self.done_pool_list)
+                                    idx=np.random.choice(self.state_pool.shape[0], size=self.num_updates*self.batch, replace=False)
+                                    self.state_pool[7]=self.state_pool[7][idx]
+                                    self.action_pool[7]=self.action_pool[7][idx]
+                                    self.next_state_pool[7]=self.next_state_pool[7][idx]
+                                    self.reward_pool[7]=self.reward_pool[7][idx]
+                                    self.done_pool[7]=self.done_pool[7][idx]
         if self.update_steps!=None:
             if self.step_counter%self.update_steps==0:
                 self.update_param()
@@ -926,6 +1080,11 @@ class RL:
                     self.done_pool=None
             if hasattr(self, 'batch_size_fn') and len(self.state_pool)>=self.pool_size_:
                 self.batch = self.batch_size_fn()
+                if self.step_counter%self.update_steps==0:
+                    if self.num_updates!=None:
+                        train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
+                    else:
+                        train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.batch)
         else:
             self.update_param()
         if self.distributed_flag==True:
