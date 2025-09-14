@@ -108,6 +108,10 @@ class PPO(RL_pytorch):
         if self.step_counter%777 or self.step_counter%self.update_steps==0:
             return self.adjust_batch_size()
         return self.adjust_batch_size()
+    
+#    def batch_size_fn(self):
+#        if self.step_counter%self.update_steps==0:
+#            return self.adabatch(32,7)
 
     def __call__(self, s, a, next_s, r, d):
         s = s.to(self.device)
@@ -204,6 +208,10 @@ class PPO_(RL_pytorch):
         if self.step_counter%777 or self.step_counter%self.update_steps==0:
             return self.adjust_batch_size()
         return self.adjust_batch_size()
+    
+#    def batch_size_fn(self):
+#        if self.step_counter%self.update_steps==0:
+#            return self.adabatch(32,7)
 
     def __call__(self, s, a, next_s, r, d):
         s = s.to(self.device)
