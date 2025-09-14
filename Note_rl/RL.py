@@ -675,7 +675,7 @@ class RL:
                     if hasattr(callback, 'on_batch_begin'):
                         callback.on_batch_begin(batch, logs={})
                 state_batch,action_batch,next_state_batch,reward_batch,done_batch=self.data_func()
-                train_ds=tf.data.Dataset.from_tensor_slices((state_batch,action_batch,next_state_batch,reward_batch,done_batch)).batch(self.batch_size)
+                train_ds=tf.data.Dataset.from_tensor_slices((state_batch,action_batch,next_state_batch,reward_batch,done_batch)).batch(self.batch)
                 if isinstance(self.strategy,tf.distribute.MirroredStrategy):
                     train_ds=self.strategy.experimental_distribute_dataset(train_ds)
                     for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
@@ -729,7 +729,7 @@ class RL:
                 elif isinstance(self.strategy,tf.distribute.MultiWorkerMirroredStrategy):
                     with self.strategy.scope():
                         multi_worker_dataset = self.strategy.distribute_datasets_from_function(
-                            lambda input_context: self.dataset_fn(train_ds, self.batch_size, input_context))  
+                            lambda input_context: self.dataset_fn(train_ds, self.batch, input_context))  
                     loss=self.CTL(multi_worker_dataset)
                     total_loss+=loss
                     num_batches += 1
@@ -800,7 +800,7 @@ class RL:
                     if hasattr(callback, 'on_batch_begin'):
                         callback.on_batch_begin(batch, logs={})
                 state_batch,action_batch,next_state_batch,reward_batch,done_batch=self.data_func()
-                train_ds=tf.data.Dataset.from_tensor_slices((state_batch,action_batch,next_state_batch,reward_batch,done_batch)).batch(self.batch_size)
+                train_ds=tf.data.Dataset.from_tensor_slices((state_batch,action_batch,next_state_batch,reward_batch,done_batch)).batch(self.batch)
                 if isinstance(self.strategy,tf.distribute.MirroredStrategy):
                     train_ds=self.strategy.experimental_distribute_dataset(train_ds)
                     for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
@@ -854,7 +854,7 @@ class RL:
                 elif isinstance(self.strategy,tf.distribute.MultiWorkerMirroredStrategy):
                     with self.strategy.scope():
                         multi_worker_dataset = self.strategy.distribute_datasets_from_function(
-                            lambda input_context: self.dataset_fn(train_ds, self.batch_size, input_context))  
+                            lambda input_context: self.dataset_fn(train_ds, self.batch, input_context))  
                     loss=self.CTL(multi_worker_dataset)
                     total_loss+=loss
                     num_batches += 1
@@ -913,7 +913,7 @@ class RL:
                 total_loss = 0.0
                 num_batches = 0
                 if self.pool_network==True:
-                    train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch_size)
+                    train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
                 else:
                     if self.num_updates!=None:
                         train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
@@ -985,11 +985,11 @@ class RL:
                 elif isinstance(self.strategy,tf.distribute.MultiWorkerMirroredStrategy):
                     with self.strategy.scope():
                         multi_worker_dataset = self.strategy.distribute_datasets_from_function(
-                            lambda input_context: self.dataset_fn(train_ds, self.batch_size, input_context))  
-                    total_loss,num_batches=self.CTL(multi_worker_dataset,math.ceil(len(self.state_pool)/self.batch_size))
+                            lambda input_context: self.dataset_fn(train_ds, self.batch, input_context))  
+                    total_loss,num_batches=self.CTL(multi_worker_dataset,math.ceil(len(self.state_pool)/self.batch))
             else:
                 if self.pool_network==True:
-                    train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch_size)
+                    train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
                 else:
                     if self.num_updates!=None:
                         train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
