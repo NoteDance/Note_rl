@@ -712,52 +712,181 @@ https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/pytorch/pool_net
 # RL.adjust\_batch\_size:
 
 **Description**:
-Compute and return an adaptive mini-batch size based on the effective sample size (ESS) derived from replay-buffer weights. The method converts TD-errors (and, for PPO, a ratio-deviation term) into sampling weights, computes ESS, smooths ESS via an exponential moving average (EMA), and maps the smoothed ESS to a new batch size. The result is clipped to a sensible range and aligned to a specified multiple so that it fits training constraints.
+Compute and return an adaptive training mini-batch size based on the Effective Sample Size (ESS) computed from replay-buffer weights. The method converts TD-errors (and — for PPO — a ratio-deviation term) into sampling weights, computes ESS, smooths ESS with an exponential moving average (EMA), maps ESS to a batch size (or scales the current batch relative to a `target_ess`), constrains the result to `[min_batch, max_batch]`, aligns it to a multiple (`align`), caps it to the buffer length, and optionally adapts the prioritization exponent `alpha` using a simple learning rule.
 
 **Arguments**:
 
-* **`scale`** (`float`, optional, default=`1.0`): Scaling factor that maps ESS to batch size. Larger `scale` tends to produce larger batches.
-* **`smooth_alpha`** (`float`, optional, default=`0.2`): Smoothing coefficient for the EMA of ESS (weight given to the new ESS). Range usually (0, 1).
-* **`min_batch`** (`int`, optional): Minimum allowed batch size. If `None`, the function uses `max(1, self.batch // 2)` as the minimum.
-* **`max_batch`** (`int`, optional): Maximum allowed batch size. If `None`, defaults to `max(1, len(weights))` (buffer length).
-* **`align`** (`int`, optional): Returned batch size will be rounded down to be a multiple of `align` (i.e., `new_batch % align == 0`). If `None`, defaults to the current `self.batch`.
+* **`scale`** (`float`, optional, default=`1.0`): Multiplicative scaling factor applied when mapping ESS → candidate batch size (or when scaling relative to `target_ess`).
+* **`smooth_alpha`** (`float`, optional, default=`0.2`): Smoothing coefficient used when updating EMA of ESS: `ema = smooth_alpha * ess + (1 - smooth_alpha) * prev_ema`.
+* **`min_batch`** (`int`, optional): Minimum allowed batch size. If `None`, uses `max(1, self.batch // 2)`.
+* **`max_batch`** (`int`, optional): Maximum allowed batch size. If `None`, uses `max(1, len(weights))`.
+* **`target_ess`** (`float`, optional): If provided, batch is computed by scaling the current `self.batch` by `ema/target_ess` (useful for keeping ESS near a target) instead of directly using `ema`.
+* **`align`** (`int`, optional): The returned batch size will be rounded down to a multiple of `align`. If `None`, defaults to `self.batch`.
+* **`alpha_lr`** (`float`, optional): If provided, enables online adjustment of `self.alpha` (the exponent used to convert TD / scores → weights). `alpha` is moved toward a `target_alpha` computed from the ESS error with learning rate `alpha_lr`.
+* **`alpha_min`** (`float`, optional): Minimum allowed value for `self.alpha` when `alpha_lr` is used. Required if `alpha_lr` is provided.
+* **`alpha_max`** (`float`, optional): Maximum allowed value for `self.alpha` when `alpha_lr` is used. Required if `alpha_lr` is provided.
+* **`smooth_beta`** (`float`, optional, default=`0.2`): Smoothing coefficient used when updating `self.alpha`: `self.alpha = smooth_beta * self.alpha + (1 - smooth_beta) * target_alpha`.
 
 **Returns**:
 
-* **`int`** — The computed, constrained, and aligned batch size (≥ 1 and ≤ buffer length).
+* **`int`** — The adjusted mini-batch size (≥ 1, ≤ buffer length) that respects `min_batch`, `max_batch`, and `align`. Also may update `self.alpha` if `alpha_lr` is provided.
 
 **Details / Algorithm**:
 
 1. **Weight computation**:
 
-   * If `PPO` is enabled: compute `scores = self.lambda_ * TD + (1.0 - self.lambda_) * |ratio - 1.0|`, then `weights = (scores + 1e-7) ** self.alpha`.
+   * If `self.PPO` is `True`: compute per-sample `scores = self.lambda_ * TD + (1.0 - self.lambda_) * abs(ratio - 1.0)` and then `weights = (scores + 1e-7) ** self.alpha`.
    * Otherwise: `weights = (TD + 1e-7) ** self.alpha`.
-   * `TD` and `ratio` are taken from `self.prioritized_replay`.
+   * `TD` (and `ratio`) are taken from `self.prioritized_replay` (single-process) or (in pool setups) `self.TD_list` / `self.ratio_list`.
 
-2. **Effective Sample Size (ESS)**:
+2. **Compute ESS**:
 
-   * Call `compute_ess_from_weights(weights)` to compute ESS robustly (the function normalizes weights and protects against numerical issues).
+   * Call `self.compute_ess_from_weights(weights)` which normalizes weights and computes ESS robustly: `ess = 1 / sum(p^2)` where `p = w / sum(w)`.
 
 3. **EMA smoothing**:
 
-   * Update EMA: `ema = smooth_alpha * ess + (1 - smooth_alpha) * prev_ema` (stored in `self.ema_ess`). here the method uses the stored EMA for the relevant scope.
+   * Update the stored EMA `self.ema_ess` (scalar for single-process, or shared array per process in pool mode) with `smooth_alpha` to reduce variance in ESS estimates.
 
 4. **Map ESS → batch size**:
 
-   * Candidate `batch = round(ema * scale)`, clamped to at least 1.
-   * Clip `batch` to `[min_batch, max_batch]`.
-   * Align the batch: `new_batch = batch - (batch % align)` and ensure `new_batch >= 1`.
-   * Finally, cap `new_batch` at the buffer length `len(weights)`.
+   * If `target_ess` is provided:
 
-5. **Return**:
+     * Compute `batch = round(self.batch * ema / target_ess * scale)` — i.e. scale the current batch to move ESS toward `target_ess`.
+   * Else:
 
-   * Return `int(new_batch)` ready to be used as the next training batch size.
+     * Compute `batch = round(ema * scale)`.
+   * Clip `batch` to `[min_batch, max_batch]` (with sensible defaults for min/max).
+   * Align `batch` down to a multiple of `align`: `new_batch = align * (batch // align)` and ensure at least `1`.
+   * Cap `new_batch` by the buffer length `len(weights)` (because batch cannot exceed number of samples).
+
+5. **Optional `alpha` adaptation**:
+
+   * If `alpha_lr` is provided, compute a `target_alpha` using the normalized ESS error: `target_alpha = self.alpha + alpha_lr * (target_ess - ema) / target_ess` (the implementation multiplies the error by `alpha_lr` and then clips `target_alpha` to `[alpha_min, alpha_max]`).
+   * Smoothly update `self.alpha` via `self.alpha = smooth_beta * self.alpha + (1 - smooth_beta) * target_alpha`.
+   * Store `self.alpha` as a float.
+
+6. **Return**:
+
+   * Return `int(new_batch)`.
 
 **Edge Cases & Notes**:
 
-* If the replay buffer is empty (`len(weights) == 0`) the function may raise an error or produce invalid output. Ensure the buffer contains samples before calling this method.
-* `align` should be chosen to match training constraints (for example, hardware/device parallelization, `self.batch`, or `self.global_batch_size`). Poor alignment choices may lead to unusable batch sizes.
-* If the buffer is smaller than `align`, the returned batch will be limited to the buffer length (still ≥ 1).
+* If the replay buffer is empty (`len(weights) == 0`) or too small, calls to this function will be invalid; ensure buffer has samples before calling.
+* `align` should be chosen to reflect training constraints (device / data-parallel multiples, or the original `self.batch`). If `align` is larger than the buffer, the returned batch will be capped to the buffer length.
+* When `target_ess` is used, the method scales the current batch to move ESS toward the target; choose `target_ess` relative to feasible ESS values (1..buffer\_size).
+* `alpha_lr` must be supplied together with `alpha_min` and `alpha_max` to bound `self.alpha`. The adaptation is heuristic — tune `alpha_lr` and `smooth_beta` carefully to avoid instability.
+* This method updates `self.ema_ess` (and optionally `self.alpha`) as a side effect.
+
+**Usage Example**:
+
+https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/keras/pool_network/PPO_pr.py
+https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/pytorch/pool_network/PPO_pr.py
+
+# RL.adabatch:
+
+**Description**:
+Adaptively compute a new mini-batch size by estimating the gradient variance from the current replay buffer and scaling the batch to drive that estimated noise toward a target noise level. The routine estimates the gradient variance using `estimate_gradient_variance`, maintains an exponential moving average (EMA) of that noise, maps EMA noise → batch size (relative to the current `self.batch` and `target_noise`), enforces min/max and alignment constraints, and optionally updates the prioritization exponent `self.alpha` as a heuristic to influence sampling weights.
+
+**Arguments**:
+
+* **`num_samples`** (`int`): Number of gradient samples to draw when estimating gradient variance. Each sample computes gradients on a different random mini-batch (of current `self.batch`) and is used to estimate variance of gradients.
+
+* **`target_noise`** (`float`, optional, default=`1e-3`): Desired (target) gradient-variance level. The function scales the batch size to move `ema_noise` toward this `target_noise`. Smaller `target_noise` generally leads to larger computed batches.
+
+* **`scale`** (`float`, optional, default=`1.0`): Multiplicative factor applied when converting the noise ratio `(ema_noise / target_noise)` into a candidate batch size.
+
+* **`smooth_alpha`** (`float`, optional, default=`0.2`): Smoothing coefficient for the EMA update of noise: `ema_noise = smooth_alpha * estimated_noise + (1 - smooth_alpha) * prev_ema_noise`.
+
+* **`min_batch`** (`int`, optional): Minimum allowed batch size. If `None`, defaults to `max(1, self.batch // 2)`.
+
+* **`max_batch`** (`int`, optional): Maximum allowed batch size. If `None`, defaults to `max(1, buffer_length)` where `buffer_length` is the length of the underlying replay buffer used (single-process `self.state_pool` or pooled `self.state_pool[7]`).
+
+* **`align`** (`int`, optional): Round the resulting batch down to a multiple of `align`. If `None`, defaults to the current `self.batch`.
+
+* **`jit_compile`** (`bool`, optional, default=`True`): Passed to `estimate_gradient_variance` to select whether to run the gradient estimation with the JIT-compiled (`tf.function(jit_compile=True)`) path or the plain `tf.function` path. Affects performance and possibly numerical behavior.
+
+* **`alpha_min`** (`float`, optional): Lower bound for `self.alpha` if `alpha_lr` is used to adapt it. Required if `alpha_lr` is supplied.
+
+* **`alpha_max`** (`float`, optional): Upper bound for `self.alpha` if `alpha_lr` is used.
+
+* **`alpha_lr`** (`float`, optional): If provided, enable a heuristic online update of `self.alpha` to try to influence sampling weight sharpness based on the noise gap. The update rule uses `(target_noise - ema_noise) / target_noise` scaled by `alpha_lr`, clipped to `[alpha_min, alpha_max]`, and smoothed into `self.alpha` (the code uses a smoothing factor of `0.9` for the old alpha and `0.1` for the target update).
+
+**Returns**:
+
+* **`int`** — The new mini-batch size (≥ 1), clipped to `[min_batch, max_batch]` and aligned to `align`.
+
+**Details**:
+
+1. **Estimate gradient variance**:
+
+   * Calls `self.estimate_gradient_variance(self.batch, num_samples, jit_compile)` which:
+
+     * Draws `num_samples` gradient estimates using random mini-batches of size `self.batch` from the replay buffer,
+     * Flattens and stacks gradients, computes the mean gradient, and returns the (scalar) variance estimate.
+
+2. **EMA of noise**:
+
+   * Maintains `self.ema_noise`. If not present, it is initialized to the first `estimated_noise`. Otherwise it is updated with `smooth_alpha`:
+
+     ```
+     ema_noise = smooth_alpha * estimated_noise + (1 - smooth_alpha) * self.ema_noise
+     self.ema_noise = ema_noise
+     ```
+
+3. **Buffer length & min/max defaults**:
+
+   * Determines `buf_len` from `self.state_pool` (single-process) or `self.state_pool[7]` (pooled / special multi-process case).
+   * If `min_batch` is `None`, set to `max(1, self.batch // 2)`.
+   * If `max_batch` is `None`, set to `max(1, buf_len)`.
+
+4. **Map noise → batch**:
+
+   * Compute a candidate batch by scaling the *current* batch size by the noise ratio:
+
+     ```
+     base_new_batch = round(self.batch * (ema_noise / target_noise) * scale)
+     ```
+
+     (i.e. if noise is larger than target, it increases batch size; if smaller, it decreases).
+   * Clip `base_new_batch` into `[min_batch, max_batch]`.
+
+5. **Alignment**:
+
+   * Align the clipped batch down to a multiple of `align`:
+
+     * If `align` is `None`, use `self.batch`.
+     * `new_batch = align * (clipped_batch // align)`.
+     * Ensure `new_batch >= 1` and `new_batch <= max_batch`.
+
+6. **Optional `self.alpha` adaptation**:
+
+   * If `alpha_lr` is provided, compute:
+
+     ```
+     target_alpha = self.alpha + alpha_lr * (target_noise - ema_noise) / target_noise
+     target_alpha = clip(target_alpha, alpha_min, alpha_max)
+     self.alpha = 0.9 * self.alpha + 0.1 * target_alpha
+     ```
+
+     This is a heuristic to change how sharply TD/ration scores are converted into weights (affects prioritized sampling).
+
+7. **Return**:
+
+   * Returns `new_batch` as `int`.
+
+**Side Effects**:
+
+* Updates `self.ema_noise` (EMA of gradient variance).
+* May update `self.alpha` when `alpha_lr` is supplied.
+* Does **not** change `self.batch` itself; the caller should assign the returned value back to `self.batch` if desired.
+
+**Edge Cases & Notes**:
+
+* The function expects the replay buffer to contain at least `self.batch` samples. If the buffer is smaller than `self.batch`, `estimate_gradient_variance` (and thus `adabatch`) may fail or produce noisy estimates.
+* `num_samples` controls the estimator variance for gradient variance: larger `num_samples` yields a more stable estimate but costs more computation.
+* The `target_noise` should be chosen based on empirical gradient magnitudes; if set too small, it will push batch sizes up aggressively (possibly to the buffer limit).
+* The `alpha_lr` adaptation is heuristic — tune `alpha_lr`, `alpha_min`, `alpha_max` and smoothing carefully to avoid instability.
+* `align` is useful to keep batch sizes compatible with hardware or parallelization constraints (e.g., data-parallel multiples).
 
 **Usage Example**:
 
