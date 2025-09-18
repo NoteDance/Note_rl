@@ -85,7 +85,7 @@ class PPO(RL_pytorch):
     
 #    def batch_size_fn(self):
 #        if self.batch_counter%self.update_batches==0:
-#            return self.adabatch(32,7)
+#            return self.adabatch(7)
 #        if self.prepare_flag==True:
 #            return self.batch
 
@@ -194,7 +194,7 @@ class PPO_(RL_pytorch):
     
 #    def batch_size_fn(self):
 #        if self.batch_counter%self.update_batches==0:
-#            return self.adabatch(32,7)
+#            return self.adabatch(7)
 #        if self.prepare_flag==True:
 #            return self.batch
 
