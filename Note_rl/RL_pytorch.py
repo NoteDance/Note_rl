@@ -310,7 +310,7 @@ class RL_pytorch:
         target_eps = np.clip(target_eps, eps_params['min'], eps_params['max'])
         smooth = eps_params.get('smooth', 0.2)
         eps = smooth * eps + (1.0 - smooth) * target_eps
-        return eps
+        return float(eps)
     
     
     def adjust_batch_size(self, scale=1.0, smooth_alpha=0.2, min_batch=None, max_batch=None, target_ess=None, align=None, alpha_lr=None, alpha_min=None, alpha_max=None, smooth_beta=0.2, lr_params=None, eps_params=None):
@@ -369,7 +369,7 @@ class RL_pytorch:
         if eps_params is not None and target_ess is not None:
             if type(self.policy) == list:
                 for policy in self.policy:
-                    policy.eps = self.adjust_eps(eps_params, self.policy.eps, ema, target_ess)
+                    policy.eps = self.adjust_eps(eps_params, policy.eps, ema, target_ess)
             else:
                 self.policy.eps = self.adjust_eps(eps_params, self.policy.eps, ema, target_ess)
                 
@@ -459,7 +459,7 @@ class RL_pytorch:
         if eps_params is not None and target_noise is not None:
             if type(self.policy) == list:
                 for policy in self.policy:
-                    self.policy.eps = self.adjust_eps(eps_params, self.policy.eps, ema_noise, target_noise)
+                    policy.eps = self.adjust_eps(eps_params, policy.eps, ema_noise, target_noise)
             else:
                 self.policy.eps = self.adjust_eps(eps_params, self.policy.eps, ema_noise, target_noise)
         
@@ -729,7 +729,16 @@ class RL_pytorch:
                 self.batch = self.batch_size_fn()
                 if self.step_counter%self.update_steps==0:
                     if self.num_updates!=None:
-                        train_ds=DataLoader((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool),batch_size=self.batch)
+                        if len(self.state_pool)>=self.pool_size_:
+                            idx=np.random.choice(self.state_pool.shape[0], size=self.pool_size_, replace=False)
+                        else:
+                            idx=np.random.choice(self.state_pool.shape[0], size=self.state_pool.shape[0], replace=False)
+                        state_pool=self.state_pool[idx]
+                        action_pool=self.action_pool[idx]
+                        next_state_pool=self.action_pool[idx]
+                        reward_pool=self.action_pool[idx]
+                        done_pool=self.action_pool[idx]
+                        train_ds=DataLoader((state_pool,action_pool,next_state_pool,reward_pool,done_pool),batch_size=self.batch)
                     else:
                         train_ds=DataLoader((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool),batch_size=self.batch,shuffle=True)
         else:
