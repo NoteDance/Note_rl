@@ -712,126 +712,153 @@ https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/pytorch/pool_net
 # RL.adjust_batch_size:
 
 **Description**:
-This method dynamically adjusts the batch size for training based on the Effective Sample Size (ESS) of the prioritized replay buffer, which measures the diversity of sampled experiences. It uses an Exponential Moving Average (EMA) of ESS to ensure smooth adjustments. Optionally, it also adapts related hyperparameters like the priority exponent alpha, learning rate, exploration epsilon, update frequency, soft update tau, and discount factor gamma, using feedback from ESS to balance exploration, stability, and efficiency in reinforcement learning algorithms such as DQN or PPO.
+This method adapts hyperparameters based on the Effective Sample Size (ESS) derived from TD-errors (or ratios in PPO mode). ESS measures the diversity of prioritized samples; low ESS indicates under-sampling diversity, prompting adjustments to batch size, alpha, learning rate, etc., to target a desired ESS level. This promotes efficient use of the replay buffer in prioritized or HER setups.
 
 **Arguments**:
 
-- **`scale`** (`float`, default=`1.0`): A scaling factor applied to the computed batch size to fine-tune the adjustment magnitude.
+- **`smooth_alpha`** (`float`, optional, default=`0.2`): Smoothing factor for the exponential moving average (EMA) of the ESS.
   
-- **`smooth_alpha`** (`float`, default=`0.2`): The smoothing coefficient for the EMA of ESS, controlling how quickly the ESS estimate adapts to new values.
+- **`batch_params`** (`dict`, optional): Parameters for batch size adjustment, including keys like `'min_batch'`, `'max_batch'`, `'scale'`, and `'align'`.
   
-- **`min_batch`** (`int`, optional): The minimum allowable batch size. If `None`, defaults to half the current batch size (clamped to at least 1).
+- **`target_ess`** (`float`, optional): The desired ESS value to target; if `None`, uses a scaling factor without explicit target.
   
-- **`max_batch`** (`int`, optional): The maximum allowable batch size. If `None`, defaults to the buffer length.
+- **`alpha_params`** (`dict`, optional): Parameters for alpha adjustment, including keys like `'alpha_lr'`, `'alpha_min'`, `'alpha_max'`, and `'smooth'`.
   
-- **`target_ess`** (`float`, optional): The target ESS value for adaptive computation. If provided, batch size scales inversely with the ratio of EMA ESS to target ESS for stability.
+- **`lr_params`** (`dict`, optional): Parameters for learning rate adjustment, including keys like `'lr_rate'`, `'min'`, `'max'`, and `'smooth'`.
   
-- **`align`** (`int`, optional): The alignment granularity for the batch size (e.g., to multiples of 16 for hardware efficiency). If `None`, defaults to the current batch size.
+- **`eps_params`** (`dict`, optional): Parameters for epsilon adjustment, including keys like `'eps_rate'`, `'min'`, `'max'`, and `'smooth'`.
   
-- **`alpha_params`** (`dict`, optional): Dictionary for adjusting the PER priority exponent alpha. Keys: `'alpha_lr'` (adjustment rate), `'alpha_min'`/`'alpha_max'` (bounds), `'smooth'` (smoothing factor, default 0.2).
+- **`freq_params`** (`dict`, optional): Parameters for update frequency adjustment, including keys like `'freq_rate'`, `'min'`, `'max'`, and `'smooth'`.
   
-- **`lr_params`** (`dict`, optional): Dictionary for adjusting learning rates. Keys: `'lr_rate'` (adjustment rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing factor, default 0.2).
+- **`tau_params`** (`dict`, optional): Parameters for tau adjustment, including keys like `'tau_rate'`, `'min'`, `'max'`, and `'smooth'`.
   
-- **`eps_params`** (`dict`, optional): Dictionary for adjusting exploration epsilon. Keys: `'eps_rate'` (adjustment rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing factor, default 0.2).
+- **`gamma_params`** (`dict`, optional): Parameters for gamma adjustment, including keys like `'gamma_rate'`, `'min'`, `'max'`, and `'smooth'`.
   
-- **`freq_params`** (`dict`, optional): Dictionary for adjusting update frequency (batches or steps). Keys: `'freq_rate'` (adjustment rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing factor, default 0.2).
-  
-- **`tau_params`** (`dict`, optional): Dictionary for adjusting soft update tau. Keys: `'tau_rate'` (adjustment rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing factor, default 0.2).
-  
-- **`gamma_params`** (`dict`, optional): Dictionary for adjusting discount factor gamma. Keys: `'gamma_rate'` (adjustment rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing factor, default 0.2).
+- **`store_params`** (`dict`, optional): Parameters for storage size (`num_store`) adjustment, including keys like `'rate'`, `'min'`, `'max'`, and `'smooth'`.
 
 **Returns**:
-- **`int`**: The newly adjusted batch size, clipped to buffer length and minimum 1.
+- No return value. The method updates instance attributes like `self.batch`, `self.alpha`, optimizer learning rates, policy epsilon, `self.update_steps`/`self.update_batches`, `self.tau`, `self.gamma`, and `self.num_store`.
 
 **Details**:
-1. **ESS Computation and Smoothing**:
-   - Computes weights from TD errors (or PPO ratios) raised to the power of alpha.
-   - Calculates ESS as `1 / sum(p^2)` where `p = weights / sum(weights)`.
-   - Applies EMA smoothing to ESS for stability: `ema = smooth_alpha * ess + (1 - smooth_alpha) * previous_ema`.
+1. **ESS Computation**:
+   - Computes prioritization weights from TD-errors (PR mode) or a combination of TD-errors and ratios (PPO mode) raised to power `self.alpha`.
+   - Calculates ESS as `1 / sum(p^2)` where `p` are normalized weights, then smooths with EMA using `smooth_alpha`.
 
-2. **Batch Size Adjustment**:
-   - If `target_ess` is provided, new batch = `current_batch * (ema / target_ess) * scale` (high ESS → larger batch for efficiency).
-   - Otherwise, new batch = `ema * scale` (direct proportional scaling).
-   - Clips to `[min_batch, max_batch]` and aligns downward to multiples of `align` for hardware optimization.
+2. **Hyperparameter Adjustments**:
+   - **Batch Size**: Increases batch size if ESS is low (low diversity) to sample more experiences, clipped and aligned.
+   - **Alpha**: Adjusts to control prioritization sharpness, reducing if ESS is low to flatten weights.
+   - **Learning Rate**: Scales LR inversely with ESS deviation to handle variance in prioritized sampling.
+   - **Epsilon**: Boosts exploration if ESS is high (over-diverse samples).
+   - **Update Frequency**: Increases frequency if ESS is low to update more often.
+   - **Tau, Gamma, and Storage**: Fine-tunes for target network stability, long-term credit assignment, and buffer sizing.
 
-3. **Optional Hyperparameter Adaptations**:
-   - **Alpha**: Low ESS → decrease alpha for uniform sampling.
-   - **Learning Rate**: High ESS → increase for faster convergence.
-   - **Epsilon**: Low ESS → increase for more exploration.
-   - **Update Frequency**: Low ESS → increase frequency for quicker adaptation.
-   - **Tau**: High ESS → decrease for slower, stable target updates.
-   - **Gamma**: High ESS → increase for longer-horizon planning.
-   - All use similar target computation, clipping, and EMA smoothing via dedicated methods.
+3. **Buffer Handling**:
+   - Works with single or multi-process pools (`self.state_pool` or `self.state_pool_list`), supporting PR and PPO modes.
 
-4. **Integration Notes**:
-   - Assumes `self.prioritized_replay` for PER/PPO support and `self.batch` for current value.
-   - Updates `self.alpha`, `self.tau`, `self.gamma`, etc., in-place if params provided.
-   - Best called periodically (e.g., every 10-50 steps) in the training loop to respond to buffer dynamics.
-
-**Usage Example**:
-
-https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/keras/pool_network/PPO_pr.py
-https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/pytorch/pool_network/PPO_pr.py
+4. **Integration**:
+   - Called within training loops to dynamically tune for better sample efficiency in off-policy RL.
 
 # RL.adabatch:
 
 **Description**:
-This method dynamically adjusts the batch size for training based on estimated gradient noise, aiming to maintain a target noise level for balanced optimization stability and efficiency. It computes gradient variance by repeatedly sampling and backpropagating on the same batch of experiences, applies Exponential Moving Average (EMA) smoothing to the noise estimate, and scales the batch size inversely with the noise (high noise → larger batch to reduce variance). Optionally, it adapts related hyperparameters like the priority exponent alpha, learning rate, exploration epsilon, update frequency, soft update tau, and discount factor gamma, using the noise estimate as a feedback signal. This is particularly useful in off-policy RL algorithms like DQN or PPO to mitigate stochastic gradient issues.
+This method implements adaptive batching based on estimated gradient noise. It computes the variance of gradients over multiple samples to approximate noise levels and dynamically adjusts hyperparameters such as batch size, learning rate, epsilon (for exploration), update frequency, soft update tau, discount factor gamma, and storage size to maintain a target noise level. This helps stabilize training by balancing variance and bias in stochastic gradient descent.
 
 **Arguments**:
 
-- **`num_samples`** (`int`, required): The number of repeated gradient computations used to estimate variance for a reliable noise proxy.
+- **`num_samples`** (`int`): The number of gradient samples to compute variance over for noise estimation.
   
-- **`target_noise`** (`float`, default=`1e-3`): The desired gradient noise level. Batch size scales to achieve this; higher values allow more noise for faster exploration.
+- **`target_noise`** (`float`, optional, default=`1e-3`): The desired noise level (gradient variance) to target during adaptation.
   
-- **`scale`** (`float`, default=`1.0`): A scaling factor for the computed batch size adjustment to fine-tune responsiveness.
+- **`smooth_alpha`** (`float`, optional, default=`0.2`): Smoothing factor for the exponential moving average (EMA) of the estimated noise.
   
-- **`smooth_alpha`** (`float`, default=`0.2`): The smoothing coefficient for EMA of the noise estimate, controlling adaptation speed.
+- **`batch_params`** (`dict`, optional): Parameters for batch size adjustment, including keys like `'min_batch'`, `'max_batch'`, `'scale'`, and `'align'`.
   
-- **`min_batch`** (`int`, optional): The minimum allowable batch size. If `None`, defaults to half the current batch size (clamped to at least 1).
+- **`alpha_params`** (`dict`, optional): Parameters for alpha adjustment (power in prioritization weights), including keys like `'alpha_lr'`, `'alpha_min'`, `'alpha_max'`, and `'smooth'`.
   
-- **`max_batch`** (`int`, optional): The maximum allowable batch size. If `None`, defaults to the buffer length.
+- **`lr_params`** (`dict`, optional): Parameters for learning rate adjustment, including keys like `'lr_rate'`, `'min'`, `'max'`, and `'smooth'`.
   
-- **`align`** (`int`, optional): Alignment granularity for the batch size (e.g., multiples of 16 for GPU efficiency). If `None`, defaults to the current batch size.
+- **`eps_params`** (`dict`, optional): Parameters for epsilon (exploration) adjustment, including keys like `'eps_rate'`, `'min'`, `'max'`, and `'smooth'`.
   
-- **`alpha_params`** (`dict`, optional): Dictionary for adjusting PER priority exponent alpha. Keys: `'alpha_lr'` (rate), `'alpha_min'`/`'alpha_max'` (bounds), `'smooth'` (smoothing, default 0.2).
+- **`freq_params`** (`dict`, optional): Parameters for update frequency adjustment, including keys like `'freq_rate'`, `'min'`, `'max'`, and `'smooth'`.
   
-- **`lr_params`** (`dict`, optional): Dictionary for adjusting learning rates. Keys: `'lr_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
+- **`tau_params`** (`dict`, optional): Parameters for soft update tau adjustment, including keys like `'tau_rate'`, `'min'`, `'max'`, and `'smooth'`.
   
-- **`eps_params`** (`dict`, optional): Dictionary for adjusting exploration epsilon. Keys: `'eps_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
+- **`gamma_params`** (`dict`, optional): Parameters for discount factor gamma adjustment, including keys like `'gamma_rate'`, `'min'`, `'max'`, and `'smooth'`.
   
-- **`freq_params`** (`dict`, optional): Dictionary for adjusting update frequency. Keys: `'freq_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-  
-- **`tau_params`** (`dict`, optional): Dictionary for adjusting soft update tau. Keys: `'tau_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-  
-- **`gamma_params`** (`dict`, optional): Dictionary for adjusting discount factor gamma. Keys: `'gamma_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-  
-- **`jit_compile`** (`bool`, default=`True`): Whether to use JIT compilation for gradient computations to improve speed.
+- **`jit_compile`** (`bool`, optional, default=`True`): Whether to use JIT compilation for gradient computation to improve performance.
 
 **Returns**:
-- **`int`**: The newly adjusted batch size, aligned, clipped to buffer length, and at minimum 1.
+- No return value. The method updates instance attributes like `self.batch`, `self.alpha`, optimizer learning rates, policy epsilon, etc., based on the adaptation rules.
 
 **Details**:
-1. **Gradient Noise Estimation**:
-   - Samples a batch of size `self.batch` from the experience pool (supporting HER/PR sub-buffers via index 7).
-   - Computes gradients `num_samples` times on this fixed batch using `backward` (or non-JIT `backward_` if disabled).
-   - Flattens and stacks gradients, then calculates variance as the mean squared deviation from the mean gradient.
+1. **Gradient Variance Estimation**:
+   - Samples random batches from the experience pool and computes gradients using the model's backward pass (with optional JIT compilation).
+   - Stacks gradients from multiple samples (`num_samples`) and calculates the mean gradient and variance across them to estimate noise (`estimated_noise`).
 
-2. **Noise Smoothing and Batch Adjustment**:
-   - Treats variance as the noise estimate (no explicit division by batch size, assuming per-batch scaling).
-   - Applies EMA smoothing: `ema_noise = smooth_alpha * estimated_noise + (1 - smooth_alpha) * previous_ema`.
-   - Computes new batch = `current_batch * (ema_noise / target_noise) * scale` (high noise → larger batch).
-   - Clips to `[min_batch, max_batch]` and aligns to multiples of `align`.
+2. **EMA Smoothing**:
+   - Applies exponential moving average to the estimated noise using `smooth_alpha` to get a stable `ema_noise`.
 
-3. **Optional Hyperparameter Adaptations**:
-   - Uses `ema_noise` (analogous to ESS) to trigger adjustments via dedicated methods (e.g., high noise → conservative LR/tau, aggressive epsilon/freq).
-   - Supports multi-optimizer/policy lists for modular setups.
-   - Assumes `self.optimizer`, `self.policy`, etc., exist; updates in-place (e.g., `self.tau = ...`).
+3. **Hyperparameter Adjustments**:
+   - **Batch Size**: Scales batch size inversely with noise to target `target_noise`, clipping to min/max and aligning to a multiple of `'align'`.
+   - **Alpha**: Adjusts the prioritization exponent based on deviation from target, clipped and smoothed.
+   - **Learning Rate**: Reduces LR if noise is high (to reduce variance), applied to the main optimizer or list of optimizers, with optional AdamW LR.
+   - **Epsilon**: Increases exploration if noise is low, applied to the policy or list of policies.
+   - **Update Frequency**: Adjusts `update_batches` or `update_steps` to control how often updates occur.
+   - **Tau and Gamma**: Fine-tunes soft update rate and discount factor for stability in target networks or value estimation.
+   
+4. **Usage in Training**:
+   - Typically called periodically during training (e.g., after certain steps) to adapt hyperparameters online, improving convergence in noisy environments.
 
-4. **Integration Notes**:
-   - Call periodically (e.g., every 10-50 updates) after sufficient buffer fill (`len(self.state_pool) >= self.pool_size_`).
-   - Compatible with PR/HER multi-processing; uses buffer index 7 for sub-buffers.
-   - High `num_samples` improves estimate accuracy but increases compute cost; start with 5-10.
+# RL.adjust:
+
+**Description**:
+This is a high-level wrapper method for hyperparameter adaptation. It selects between ESS-based (via `adjust_batch_size`) or noise-based (via `adabatch`) adaptation depending on whether `target_noise` is provided. This allows flexible online tuning of training dynamics to maintain stable gradients and diverse sampling in RL training.
+
+**Arguments**:
+
+- **`target_ess`** (`float`, optional): The target Effective Sample Size for ESS-based adaptation.
+  
+- **`target_noise`** (`float`, optional): The target gradient noise level for noise-based adaptation; if provided, triggers `adabatch`.
+  
+- **`num_samples`** (`int`, optional): Number of samples for gradient variance estimation in noise mode.
+  
+- **`smooth_alpha`** (`float`, optional, default=`0.2`): Smoothing factor for EMA in both modes.
+  
+- **`batch_params`** (`dict`, optional): Batch size adjustment parameters (see `adjust_batch_size`).
+  
+- **`alpha_params`** (`dict`, optional): Alpha adjustment parameters (see `adjust_batch_size`).
+  
+- **`lr_params`** (`dict`, optional): Learning rate adjustment parameters (see `adabatch`).
+  
+- **`eps_params`** (`dict`, optional): Epsilon adjustment parameters (see `adabatch`).
+  
+- **`freq_params`** (`dict`, optional): Update frequency parameters (see `adabatch`).
+  
+- **`tau_params`** (`dict`, optional): Tau adjustment parameters (see `adabatch`).
+  
+- **`gamma_params`** (`dict`, optional): Gamma adjustment parameters (see `adabatch`).
+  
+- **`store_params`** (`dict`, optional): Storage size parameters (see `adjust_batch_size`).
+  
+- **`jit_compile`** (`bool`, optional, default=`True`): Enable JIT for gradient computations in noise mode.
+
+**Returns**:
+- No return value. Delegates to `adjust_batch_size` or `adabatch`, updating relevant hyperparameters accordingly.
+
+**Details**:
+1. **Mode Selection**:
+   - If `target_noise` is `None`, computes ESS from prioritization weights and calls `adjust_batch_size`.
+   - Otherwise, estimates gradient variance and calls `adabatch` for noise targeting.
+
+2. **Shared Adjustments**:
+   - Both modes handle batch size, alpha, LR, epsilon, frequency, tau, and gamma via passed parameter dicts.
+   - ESS mode additionally supports `store_params`; noise mode uses `num_samples` and `jit_compile`.
+
+3. **EMA and Clipping**:
+   - All adjustments use clipped targets and EMA smoothing for gradual changes, preventing instability.
+
+4. **Use Cases**:
+   - Ideal for periodic calls in `train` loops to auto-tune for varying environment complexities or buffer states.
 
 **Usage Example**:
 
