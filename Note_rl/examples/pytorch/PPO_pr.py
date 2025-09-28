@@ -62,6 +62,12 @@ class PPO(RL_pytorch):
         self.alpha = alpha
         self.temp = temp
         self.gamma = gamma
+        
+        self.batch_params={}
+        self.batch_params['min_batch']=None
+        self.batch_params['max_batch']=None
+        self.batch_params['scale']=1.0
+        self.batch_params['align']=None
 
         self.param = [self.actor.parameters(), self.critic.parameters(), self.controller.parameters()]
 
@@ -104,14 +110,15 @@ class PPO(RL_pytorch):
         w = self.controller(features)
         return w
     
-    def batch_size_fn(self):
+    def adjust_fn(self):
         if self.step_counter%777 or self.step_counter%self.update_steps==0:
-            return self.adjust_batch_size()
-        return self.adjust_batch_size()
+            self.adjust(batch_params=self.batch_params)
+            return
+        self.adjust(batch_params=self.batch_params)
     
-#    def batch_size_fn(self):
+#    def adjust_fn(self):
 #        if self.step_counter%self.update_steps==0:
-#            return self.adabatch(7)
+#            self.adjust(num_samples=7, target_noise=1e-3)
 
     def __call__(self, s, a, next_s, r, d):
         s = s.to(self.device)
@@ -186,6 +193,12 @@ class PPO_(RL_pytorch):
         self.clip_eps = clip_eps
         self.alpha = alpha
         self.gamma = gamma
+        
+        self.batch_params={}
+        self.batch_params['min_batch']=None
+        self.batch_params['max_batch']=None
+        self.batch_params['scale']=1.0
+        self.batch_params['align']=None
 
         self.param = [self.actor.parameters(), self.critic.parameters(), self.controller.parameters()]
 
@@ -204,14 +217,15 @@ class PPO_(RL_pytorch):
     def window_size_fn(self):
         return self.adjust_window_size()
     
-    def batch_size_fn(self):
+    def adjust_fn(self):
         if self.step_counter%777 or self.step_counter%self.update_steps==0:
-            return self.adjust_batch_size()
-        return self.adjust_batch_size()
+            self.adjust(batch_params=self.batch_params)
+            return
+        self.adjust(batch_params=self.batch_params)
     
-#    def batch_size_fn(self):
+#    def adjust_fn(self):
 #        if self.step_counter%self.update_steps==0:
-#            return self.adabatch(7)
+#            self.adjust(num_samples=7, target_noise=1e-3)
 
     def __call__(self, s, a, next_s, r, d):
         s = s.to(self.device)
