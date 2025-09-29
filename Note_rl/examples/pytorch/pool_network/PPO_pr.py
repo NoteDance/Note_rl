@@ -62,8 +62,8 @@ class PPO(RL_pytorch):
         self.gamma = gamma
         
         self.batch_params={}
-        self.batch_params['min_batch']=None
-        self.batch_params['max_batch']=None
+        self.batch_params['min']=None
+        self.batch_params['max']=None
         self.batch_params['scale']=1.0
         self.batch_params['align']=None
 
@@ -154,8 +154,8 @@ class PPO_(RL_pytorch):
         self.gamma = gamma
         
         self.batch_params={}
-        self.batch_params['min_batch']=None
-        self.batch_params['max_batch']=None
+        self.batch_params['min']=None
+        self.batch_params['max']=None
         self.batch_params['scale']=1.0
         self.batch_params['align']=None
 
