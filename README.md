@@ -656,19 +656,19 @@ This method dynamically adjusts the batch size for training based on the Effecti
   
 - **`target_ess`** (`float`, optional): The target ESS value for adaptive computation. If provided, batch size scales with the ratio of EMA ESS to target ESS.
   
-- **`alpha_params`** (`dict`, optional): Dictionary for adjusting PER priority exponent alpha. Keys: `'alpha_lr'` (rate), `'alpha_min'`/`'alpha_max'` (bounds), `'smooth'` (smoothing, default 0.2).
+- **`alpha_params`** (`dict`, optional): Dictionary for adjusting PER priority exponent alpha. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
   
-- **`lr_params`** (`dict`, optional): Dictionary for adjusting learning rates. Keys: `'lr_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
+- **`lr_params`** (`dict`, optional): Dictionary for adjusting learning rates. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
   
-- **`eps_params`** (`dict`, optional): Dictionary for adjusting exploration epsilon. Keys: `'eps_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
+- **`eps_params`** (`dict`, optional): Dictionary for adjusting exploration epsilon. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
   
-- **`freq_params`** (`dict`, optional): Dictionary for adjusting update frequency. Keys: `'freq_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
+- **`freq_params`** (`dict`, optional): Dictionary for adjusting update frequency. Keys: `'scale'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
   
-- **`tau_params`** (`dict`, optional): Dictionary for adjusting soft update tau. Keys: `'tau_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
+- **`tau_params`** (`dict`, optional): Dictionary for adjusting soft update tau. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
   
-- **`gamma_params`** (`dict`, optional): Dictionary for adjusting discount factor gamma. Keys: `'gamma_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
+- **`gamma_params`** (`dict`, optional): Dictionary for adjusting discount factor gamma. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
   
-- **`store_params`** (`dict`, optional): Dictionary for adjusting store count. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing).
+- **`store_params`** (`dict`, optional): Dictionary for adjusting store count. Keys: `'scale'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing).
   
 - **`weight_decay_params`** (`dict`, optional): Dictionary for adjusting weight decay. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
   
@@ -714,17 +714,17 @@ This method dynamically adjusts the batch size based on estimated gradient noise
   
 - **`batch_params`** (`dict`, optional): For batch adjustment. Keys: `'scale'` (default 1.0), `'min'`/`'max'` (bounds), `'align'` (granularity).
   
-- **`alpha_params`** (`dict`, optional): For PER alpha. Keys: `'alpha_lr'` (rate), `'alpha_min'`/`'alpha_max'` (bounds), `'smooth'` (default 0.2).
+- **`alpha_params`** (`dict`, optional): For PER alpha. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
   
-- **`lr_params`** (`dict`, optional): For LR. Keys: `'lr_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
+- **`lr_params`** (`dict`, optional): For LR. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
   
-- **`eps_params`** (`dict`, optional): For epsilon. Keys: `'eps_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
+- **`eps_params`** (`dict`, optional): For epsilon. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
   
-- **`freq_params`** (`dict`, optional): For update frequency. Keys: `'freq_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
+- **`freq_params`** (`dict`, optional): For update frequency. Keys: `'scale'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
   
-- **`tau_params`** (`dict`, optional): For tau. Keys: `'tau_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
+- **`tau_params`** (`dict`, optional): For tau. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
   
-- **`gamma_params`** (`dict`, optional): For gamma. Keys: `'gamma_rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
+- **`gamma_params`** (`dict`, optional): For gamma. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
   
 - **`weight_decay_params`** (`dict`, optional): For weight decay. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
   
