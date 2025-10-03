@@ -343,10 +343,10 @@ class RL:
     
     def adjust_alpha(self, alpha_params, ema, target, GNS=False):
         if not GNS:
-            target_alpha = self.alpha + alpha_params['alpha_lr'] * (ema / target - 1.0)
+            target_alpha = self.alpha + alpha_params['rate'] * (ema / target - 1.0)
         else:
-            target_alpha = self.alpha + alpha_params['alpha_lr'] * (target - ema) / target
-        target_alpha = np.clip(target_alpha, alpha_params['alpha_min'], alpha_params['alpha_max'])
+            target_alpha = self.alpha + alpha_params['rate'] * (target - ema) / target
+        target_alpha = np.clip(target_alpha, alpha_params['min'], alpha_params['max'])
         smooth = alpha_params.get('smooth', 0.2)
         self.alpha = smooth * self.alpha + (1.0 - smooth) * target_alpha
         self.alpha = float(self.alpha)
@@ -354,9 +354,9 @@ class RL:
     
     def adjust_lr(self, lr_params, lr, ema, target, GNS=False): 
         if not GNS:
-            target_lr = lr + lr_params['lr_rate'] * (ema / target - 1.0)
+            target_lr = lr + lr_params['rate'] * (ema / target - 1.0)
         else:
-            target_lr = lr + lr_params['lr_rate'] * (target - ema) / target
+            target_lr = lr + lr_params['rate'] * (target - ema) / target
         target_lr = np.clip(target_lr, lr_params['min'], lr_params['max'])
         smooth = lr_params.get('smooth', 0.2)
         lr = smooth * lr + (1.0 - smooth) * target_lr
@@ -365,9 +365,9 @@ class RL:
     
     def adjust_eps(self, eps_params, eps, ema, target, GNS=False):
         if not GNS:
-            target_eps = eps + eps_params['eps_rate'] * (target - ema) / target
+            target_eps = eps + eps_params['rate'] * (target - ema) / target
         else:
-            target_eps = eps + eps_params['eps_rate'] * (ema / target - 1.0)
+            target_eps = eps + eps_params['rate'] * (ema / target - 1.0)
         target_eps = np.clip(target_eps, eps_params['min'], eps_params['max'])
         smooth = eps_params.get('smooth', 0.2)
         eps = smooth * eps + (1.0 - smooth) * target_eps
@@ -380,12 +380,10 @@ class RL:
         else:
             freq = self.update_steps
         if not GNS:
-            target_freq = freq + freq_params['freq_rate'] * (target - ema) / target
+            freq = freq_params['scale'] * target / ema * freq
         else:
-            target_freq = freq + freq_params['freq_rate'] * (ema / target - 1.0)
-        target_freq = np.clip(target_freq, freq_params['min'], freq_params['max'])
-        smooth = freq_params.get('smooth', 0.2)
-        freq = smooth * freq + (1.0 - smooth) * target_freq
+            freq = freq_params['scale'] * ema / target * freq
+        freq = np.clip(freq, freq_params['min'], freq_params['max'])
         if self.update_batches is not None:
             self.update_batches = int(freq)
         else:
@@ -395,9 +393,9 @@ class RL:
     def adjust_tau(self, tau_params, ema, target, GNS=False):      
         tau = self.tau
         if not GNS:
-            target_tau = tau + tau_params['tau_rate'] * (ema / target - 1.0)
+            target_tau = tau + tau_params['rate'] * (ema / target - 1.0)
         else:
-            target_tau = tau + tau_params['tau_rate'] * (target - ema) / target
+            target_tau = tau + tau_params['rate'] * (target - ema) / target
         target_tau = np.clip(target_tau, tau_params['min'], tau_params['max'])
         smooth = tau_params.get('smooth', 0.2)
         tau = smooth * tau + (1.0 - smooth) * target_tau
@@ -407,9 +405,9 @@ class RL:
     def adjust_gamma(self, gamma_params, ema, target, GNS=False):    
         gamma = self.gamma
         if not GNS:
-            target_gamma = gamma + gamma_params['gamma_rate'] * (ema / target - 1.0)
+            target_gamma = gamma + gamma_params['rate'] * (ema / target - 1.0)
         else:
-            target_gamma = gamma + gamma_params['gamma_rate'] * (target - ema) / target
+            target_gamma = gamma + gamma_params['rate'] * (target - ema) / target
         target_gamma = np.clip(target_gamma, gamma_params['min'], gamma_params['max'])
         smooth = gamma_params.get('smooth', 0.2)
         gamma = smooth * gamma + (1.0 - smooth) * target_gamma
@@ -417,11 +415,9 @@ class RL:
         
         
     def adjust_num_store(self, store_params, ema, target):      
-        target_num_store = self.num_store + store_params['rate'] * (target - ema) / target
-        target_num_store = np.clip(target_num_store, store_params['min'], store_params['max'])
-        smooth = store_params['smooth']
-        num_store = smooth * self.num_store + (1.0 - smooth) * target_num_store
-        self.num_store = int(max(1, num_store))
+        num_store = store_params['scale'] * target / ema * self.num_store
+        num_store = np.clip(num_store, store_params['min'], store_params['max'])
+        self.num_store = int(max(store_params['min'], num_store))
     
     
     def adjust_weight_decay(self, weight_decay_params, weight_decay, ema, target, GNS=False):
@@ -466,9 +462,9 @@ class RL:
     def adjust_beta(self, beta_params, ema, target, GNS=False):
         beta = self.beta
         if not GNS:
-            target_beta = beta + beta_params['beta_rate'] * (target - ema) / target
+            target_beta = beta + beta_params['rate'] * (target - ema) / target
         else:
-            target_beta = beta + beta_params['beta_rate'] * (ema / target - 1.0)
+            target_beta = beta + beta_params['rate'] * (ema / target - 1.0)
         target_beta = np.clip(target_beta, beta_params['min'], beta_params['max'])
         smooth = beta_params.get('smooth', 0.2)
         beta = smooth * beta + (1.0 - smooth) * target_beta
