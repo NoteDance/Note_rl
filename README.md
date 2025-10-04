@@ -662,13 +662,13 @@ This method dynamically adjusts the batch size for training based on the Effecti
   
 - **`eps_params`** (`dict`, optional): Dictionary for adjusting exploration epsilon. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
   
-- **`freq_params`** (`dict`, optional): Dictionary for adjusting update frequency. Keys: `'scale'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
+- **`freq_params`** (`dict`, optional): Dictionary for adjusting update frequency. Keys: `'scale'` (scale), `'min'`/`'max'` (bounds).
   
 - **`tau_params`** (`dict`, optional): Dictionary for adjusting soft update tau. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
   
 - **`gamma_params`** (`dict`, optional): Dictionary for adjusting discount factor gamma. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
   
-- **`store_params`** (`dict`, optional): Dictionary for adjusting store count. Keys: `'scale'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing).
+- **`store_params`** (`dict`, optional): Dictionary for adjusting store count. Keys: `'scale'` (scale), `'min'`/`'max'` (bounds).
   
 - **`weight_decay_params`** (`dict`, optional): Dictionary for adjusting weight decay. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
   
@@ -720,7 +720,7 @@ This method dynamically adjusts the batch size based on estimated gradient noise
   
 - **`eps_params`** (`dict`, optional): For epsilon. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
   
-- **`freq_params`** (`dict`, optional): For update frequency. Keys: `'scale'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
+- **`freq_params`** (`dict`, optional): For update frequency. Keys: `'scale'` (scale), `'min'`/`'max'` (bounds).
   
 - **`tau_params`** (`dict`, optional): For tau. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
   
