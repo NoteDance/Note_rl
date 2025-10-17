@@ -903,18 +903,11 @@ class RL:
                             if self.PPO:
                                 self.ratio_list[p]=self.ratio_list[p][window_size:]
                             self.TD_list[p]=self.TD_list[p][window_size:]
-                    if self.processes_her==None and self.processes_pr==None:
-                        self.state_pool=np.concatenate(self.state_pool_list)
-                        self.action_pool=np.concatenate(self.action_pool_list)
-                        self.next_state_pool=np.concatenate(self.next_state_pool_list)
-                        self.reward_pool=np.concatenate(self.reward_pool_list)
-                        self.done_pool=np.concatenate(self.done_pool_list)
-                    else:
-                        self.state_pool[7]=np.concatenate(self.state_pool_list)
-                        self.action_pool[7]=np.concatenate(self.action_pool_list)
-                        self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
-                        self.reward_pool[7]=np.concatenate(self.reward_pool_list)
-                        self.done_pool[7]=np.concatenate(self.done_pool_list)
+                    self.state_pool=np.concatenate(self.state_pool_list)
+                    self.action_pool=np.concatenate(self.action_pool_list)
+                    self.next_state_pool=np.concatenate(self.next_state_pool_list)
+                    self.reward_pool=np.concatenate(self.reward_pool_list)
+                    self.done_pool=np.concatenate(self.done_pool_list)
                     if self.PPO:
                         self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                         self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
@@ -957,41 +950,24 @@ class RL:
                     if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                         self.adjust_func()
                         if self.num_updates!=None and self.batch_counter%self.update_batches==0:
-                            if self.processes_her==None and self.processes_pr==None:
-                                self.state_pool=np.concatenate(self.state_pool_list)
-                                self.action_pool=np.concatenate(self.action_pool_list)
-                                self.next_state_pool=np.concatenate(self.next_state_pool_list)
-                                self.reward_pool=np.concatenate(self.reward_pool_list)
-                                self.done_pool=np.concatenate(self.done_pool_list)
-                                self.pool_size_=self.num_updates*self.batch
-                                if len(self.state_pool)>=self.pool_size_:
-                                    idx=np.random.choice(self.state_pool.shape[0], size=self.pool_size_, replace=False)
-                                else:
-                                    idx=np.random.choice(self.state_pool.shape[0], size=self.state_pool.shape[0], replace=False)
-                                self.state_pool=self.state_pool[idx]
-                                self.action_pool=self.action_pool[idx]
-                                self.next_state_pool=self.next_state_pool[idx]
-                                self.reward_pool=self.reward_pool[idx]
-                                self.done_pool=self.done_pool[idx]
-                                train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
-                                multi_worker_dataset = self.strategy.distribute_datasets_from_function(
-                                        lambda input_context: self.dataset_fn(train_ds, self.batch, input_context)) 
+                            self.state_pool=np.concatenate(self.state_pool_list)
+                            self.action_pool=np.concatenate(self.action_pool_list)
+                            self.next_state_pool=np.concatenate(self.next_state_pool_list)
+                            self.reward_pool=np.concatenate(self.reward_pool_list)
+                            self.done_pool=np.concatenate(self.done_pool_list)
+                            self.pool_size_=self.num_updates*self.batch
+                            if len(self.state_pool)>=self.pool_size_:
+                                idx=np.random.choice(self.state_pool.shape[0], size=self.pool_size_, replace=False)
                             else:
-                                self.state_pool[7]=np.concatenate(self.state_pool_list)
-                                self.action_pool[7]=np.concatenate(self.action_pool_list)
-                                self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
-                                self.reward_pool[7]=np.concatenate(self.reward_pool_list)
-                                self.done_pool[7]=np.concatenate(self.done_pool_list)
-                                self.pool_size_=self.num_updates*self.batch
-                                if len(self.state_pool)>=self.pool_size_:
-                                    idx=np.random.choice(self.state_pool[7].shape[0], size=self.pool_size_, replace=False)
-                                else:
-                                    idx=np.random.choice(self.state_pool[7].shape[0], size=self.state_pool[7].shape[0], replace=False)
-                                self.state_pool[7]=self.state_pool[7][idx]
-                                self.action_pool[7]=self.action_pool[7][idx]
-                                self.next_state_pool[7]=self.next_state_pool[7][idx]
-                                self.reward_pool[7]=self.reward_pool[7][idx]
-                                self.done_pool[7]=self.done_pool[7][idx]
+                                idx=np.random.choice(self.state_pool.shape[0], size=self.state_pool.shape[0], replace=False)
+                            self.state_pool=self.state_pool[idx]
+                            self.action_pool=self.action_pool[idx]
+                            self.next_state_pool=self.next_state_pool[idx]
+                            self.reward_pool=self.reward_pool[idx]
+                            self.done_pool=self.done_pool[idx]
+                            train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
+                            multi_worker_dataset = self.strategy.distribute_datasets_from_function(
+                                    lambda input_context: self.dataset_fn(train_ds, self.batch, input_context)) 
                 if self.stop_training==True:
                     return total_loss,num_batches
             return total_loss,num_batches
@@ -1050,18 +1026,11 @@ class RL:
                                         if self.PPO:
                                             self.ratio_list[p]=self.ratio_list[p][window_size:]
                                         self.TD_list[p]=self.TD_list[p][window_size:]
-                                if self.processes_her==None and self.processes_pr==None:
-                                    self.state_pool=np.concatenate(self.state_pool_list)
-                                    self.action_pool=np.concatenate(self.action_pool_list)
-                                    self.next_state_pool=np.concatenate(self.next_state_pool_list)
-                                    self.reward_pool=np.concatenate(self.reward_pool_list)
-                                    self.done_pool=np.concatenate(self.done_pool_list)
-                                else:
-                                    self.state_pool[7]=np.concatenate(self.state_pool_list)
-                                    self.action_pool[7]=np.concatenate(self.action_pool_list)
-                                    self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
-                                    self.reward_pool[7]=np.concatenate(self.reward_pool_list)
-                                    self.done_pool[7]=np.concatenate(self.done_pool_list)
+                                self.state_pool=np.concatenate(self.state_pool_list)
+                                self.action_pool=np.concatenate(self.action_pool_list)
+                                self.next_state_pool=np.concatenate(self.next_state_pool_list)
+                                self.reward_pool=np.concatenate(self.reward_pool_list)
+                                self.done_pool=np.concatenate(self.done_pool_list)
                                 if self.PPO:
                                     self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
@@ -1175,18 +1144,11 @@ class RL:
                                         if self.PPO:
                                             self.ratio_list[p]=self.ratio_list[p][window_size:]
                                         self.TD_list[p]=self.TD_list[p][window_size:]
-                                if self.processes_her==None and self.processes_pr==None:
-                                    self.state_pool=np.concatenate(self.state_pool_list)
-                                    self.action_pool=np.concatenate(self.action_pool_list)
-                                    self.next_state_pool=np.concatenate(self.next_state_pool_list)
-                                    self.reward_pool=np.concatenate(self.reward_pool_list)
-                                    self.done_pool=np.concatenate(self.done_pool_list)
-                                else:
-                                    self.state_pool[7]=np.concatenate(self.state_pool_list)
-                                    self.action_pool[7]=np.concatenate(self.action_pool_list)
-                                    self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
-                                    self.reward_pool[7]=np.concatenate(self.reward_pool_list)
-                                    self.done_pool[7]=np.concatenate(self.done_pool_list)
+                                self.state_pool=np.concatenate(self.state_pool_list)
+                                self.action_pool=np.concatenate(self.action_pool_list)
+                                self.next_state_pool=np.concatenate(self.next_state_pool_list)
+                                self.reward_pool=np.concatenate(self.reward_pool_list)
+                                self.done_pool=np.concatenate(self.done_pool_list)
                                 if self.PPO:
                                     self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
@@ -1300,39 +1262,22 @@ class RL:
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                                 self.adjust_func()
                                 if self.num_updates!=None and self.batch_counter%self.update_batches==0:
-                                    if self.processes_her==None and self.processes_pr==None:
-                                        self.state_pool=np.concatenate(self.state_pool_list)
-                                        self.action_pool=np.concatenate(self.action_pool_list)
-                                        self.next_state_pool=np.concatenate(self.next_state_pool_list)
-                                        self.reward_pool=np.concatenate(self.reward_pool_list)
-                                        self.done_pool=np.concatenate(self.done_pool_list)
-                                        self.pool_size_=self.num_updates*self.batch
-                                        if len(self.state_pool)>=self.pool_size_:
-                                            idx=np.random.choice(self.state_pool.shape[0], size=self.pool_size_, replace=False)
-                                        else:
-                                            idx=np.random.choice(self.state_pool.shape[0], size=self.state_pool.shape[0], replace=False)
-                                        self.state_pool=self.state_pool[idx]
-                                        self.action_pool=self.action_pool[idx]
-                                        self.next_state_pool=self.next_state_pool[idx]
-                                        self.reward_pool=self.reward_pool[idx]
-                                        self.done_pool=self.done_pool[idx]
-                                        train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
+                                    self.state_pool=np.concatenate(self.state_pool_list)
+                                    self.action_pool=np.concatenate(self.action_pool_list)
+                                    self.next_state_pool=np.concatenate(self.next_state_pool_list)
+                                    self.reward_pool=np.concatenate(self.reward_pool_list)
+                                    self.done_pool=np.concatenate(self.done_pool_list)
+                                    self.pool_size_=self.num_updates*self.batch
+                                    if len(self.state_pool)>=self.pool_size_:
+                                        idx=np.random.choice(self.state_pool.shape[0], size=self.pool_size_, replace=False)
                                     else:
-                                        self.state_pool[7]=np.concatenate(self.state_pool_list)
-                                        self.action_pool[7]=np.concatenate(self.action_pool_list)
-                                        self.next_state_pool[7]=np.concatenate(self.next_state_pool_list)
-                                        self.reward_pool[7]=np.concatenate(self.reward_pool_list)
-                                        self.done_pool[7]=np.concatenate(self.done_pool_list)
-                                        self.pool_size_=self.num_updates*self.batch
-                                        if len(self.state_pool)>=self.pool_size_:
-                                            idx=np.random.choice(self.state_pool[7].shape[0], size=self.pool_size_, replace=False)
-                                        else:
-                                            idx=np.random.choice(self.state_pool[7].shape[0], size=self.state_pool[7].shape[0], replace=False)
-                                        self.state_pool[7]=self.state_pool[7][idx]
-                                        self.action_pool[7]=self.action_pool[7][idx]
-                                        self.next_state_pool[7]=self.next_state_pool[7][idx]
-                                        self.reward_pool[7]=self.reward_pool[7][idx]
-                                        self.done_pool[7]=self.done_pool[7][idx]
+                                        idx=np.random.choice(self.state_pool.shape[0], size=self.state_pool.shape[0], replace=False)
+                                    self.state_pool=self.state_pool[idx]
+                                    self.action_pool=self.action_pool[idx]
+                                    self.next_state_pool=self.next_state_pool[idx]
+                                    self.reward_pool=self.reward_pool[idx]
+                                    self.done_pool=self.done_pool[idx]
+                                    train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
                 elif isinstance(self.strategy,tf.distribute.MultiWorkerMirroredStrategy):
                     with self.strategy.scope():
                         multi_worker_dataset = self.strategy.distribute_datasets_from_function(
