@@ -918,7 +918,7 @@ class RL:
             return total_loss
         else:
             batch = 0
-            while self.step_in_epoch < num_steps_per_episode:
+            while self.step_in_episode < num_steps_per_episode:
                 if self.num_updates!=None and self.batch_counter%self.num_updates==0:
                     break
                 for callback in self.callbacks:
