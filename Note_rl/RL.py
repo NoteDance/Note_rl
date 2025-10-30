@@ -947,6 +947,7 @@ class RL:
                                 self.next_state_pool_list[p]=None
                                 self.reward_pool_list[p]=None
                                 self.done_pool_list[p]=None
+                            break
                     if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                         self.adjust_func()
                         if self.num_updates!=None and self.batch_counter%self.update_batches==0:
@@ -985,7 +986,7 @@ class RL:
             for j in range(batches):
                 if self.stop_training==True:
                     if self.distributed_flag==True:
-                        return np.array(0.)
+                        return (total_loss / num_batches).numpy()
                     else:
                         return train_loss.result().numpy()
                 if self.num_updates!=None and self.batch_counter%self.num_updates==0:
@@ -1034,6 +1035,7 @@ class RL:
                                 if self.PPO:
                                     self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
+                                    return (total_loss / num_batches).numpy()
                                 else:
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
@@ -1045,6 +1047,8 @@ class RL:
                     loss=self.CTL(multi_worker_dataset)
                     total_loss+=loss
                     num_batches += 1
+                    if self.PPO and self.batch_counter%self.update_batches==0:
+                        return (total_loss / num_batches).numpy()
                 elif self.distributed_flag!=True:
                     for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
                         if self.jit_compile==True:
@@ -1088,6 +1092,7 @@ class RL:
                                 if self.PPO:
                                     self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
+                                    return train_loss.result().numpy()
                                 else:
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
@@ -1100,7 +1105,7 @@ class RL:
             if len(self.state_pool)%self.batch!=0:
                 if self.stop_training==True:
                     if self.distributed_flag==True:
-                        return np.array(0.)
+                        return (total_loss / num_batches).numpy()
                     else:
                         return train_loss.result().numpy() 
                 if self.num_updates!=None and self.batch_counter%self.num_updates==0:
@@ -1152,6 +1157,7 @@ class RL:
                                 if self.PPO:
                                     self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
+                                    return (total_loss / num_batches).numpy()
                                 else:
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
@@ -1163,6 +1169,8 @@ class RL:
                     loss=self.CTL(multi_worker_dataset)
                     total_loss+=loss
                     num_batches += 1
+                    if self.PPO and self.batch_counter%self.update_batches==0:
+                        return (total_loss / num_batches).numpy()
                 elif self.distributed_flag!=True:
                     if self.jit_compile==True:
                         loss=self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],train_loss,optimizer)
@@ -1204,6 +1212,7 @@ class RL:
                             if self.PPO:
                                 self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                 self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
+                                return train_loss.result().numpy()
                             else:
                                 self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
                         if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
@@ -1228,10 +1237,7 @@ class RL:
                     train_ds=self.strategy.experimental_distribute_dataset(train_ds)
                     for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
                         if self.stop_training==True:
-                            if self.distributed_flag==True:
-                                return np.array(0.)
-                            else:
-                                return train_loss.result().numpy() 
+                            return (total_loss / num_batches).numpy()
                         if self.num_updates!=None and self.batch_counter%self.num_updates==0:
                             break
                         for callback in self.callbacks:
@@ -1259,6 +1265,7 @@ class RL:
                                         self.next_state_pool_list[p]=None
                                         self.reward_pool_list[p]=None
                                         self.done_pool_list[p]=None
+                                    break
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                                 self.adjust_func()
                                 if self.num_updates!=None and self.batch_counter%self.update_batches==0:
@@ -1283,6 +1290,8 @@ class RL:
                         multi_worker_dataset = self.strategy.distribute_datasets_from_function(
                             lambda input_context: self.dataset_fn(train_ds, self.batch, input_context))  
                     total_loss,num_batches=self.CTL(multi_worker_dataset,math.ceil(len(self.state_pool)/self.batch))
+                    if self.PPO and self.batch_counter%self.update_batches==0:
+                        return (total_loss / num_batches).numpy()
             else:
                 if self.pool_network==True:
                     train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
@@ -1320,6 +1329,7 @@ class RL:
                                     self.next_state_pool_list[p]=None
                                     self.reward_pool_list[p]=None
                                     self.done_pool_list[p]=None
+                                break
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                                 self.adjust_func()
                                 if self.num_updates!=None and self.batch_counter%self.update_batches==0:
@@ -1376,12 +1386,17 @@ class RL:
                         if self.PPO:
                             self.prioritized_replay.ratio=self.prioritized_replay.ratio[window_size:]
                         self.prioritized_replay.TD=self.prioritized_replay.TD[window_size:]
-                else:
+                elif self.PPO:
                     self.state_pool=None
                     self.action_pool=None
                     self.next_state_pool=None
                     self.reward_pool=None
                     self.done_pool=None
+                if self.PPO:
+                    if self.distributed_flag==True:
+                        return (total_loss / num_batches).numpy()
+                    else:
+                        return train_loss.result().numpy()
             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                 self.adjust_func()
                 if self.step_counter%self.update_steps==0:
