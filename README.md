@@ -650,7 +650,7 @@ This method dynamically adjusts the batch size for training based on the Effecti
 
 **Arguments**:
 
-- **`smooth_alpha`** (`float`, default=`0.2`): The smoothing coefficient for the EMA of ESS, controlling adaptation speed to new ESS values.
+- **`smooth`** (`float`, default=`0.2`): The smoothing coefficient for the EMA of ESS, controlling adaptation speed to new ESS values.
   
 - **`batch_params`** (`dict`, optional): Dictionary for batch adjustment. Keys: `'scale'` (scaling factor, default 1.0), `'min'` (min batch, optional), `'max'` (max batch, optional), `'align'` (alignment granularity, optional).
   
@@ -710,7 +710,7 @@ This method dynamically adjusts the batch size based on estimated gradient noise
   
 - **`target_noise`** (`float`, default=`1e-3`): Target gradient noise level; adjusts batch to achieve this.
   
-- **`smooth_alpha`** (`float`, default=`0.2`): EMA smoothing for noise estimate.
+- **`smooth`** (`float`, default=`0.2`): EMA smoothing for noise estimate.
   
 - **`batch_params`** (`dict`, optional): For batch adjustment. Keys: `'scale'` (default 1.0), `'min'`/`'max'` (bounds), `'align'` (granularity).
   
@@ -766,7 +766,7 @@ This wrapper method unifies ESS-based and GNS-based adjustments by dispatching t
   
 - **`num_samples`** (`int`, optional): For GNS estimation (required if `target_noise` provided).
   
-- **`smooth_alpha`** (`float`, default=`0.2`): EMA smoothing for ESS or noise.
+- **`smooth`** (`float`, default=`0.2`): EMA smoothing for ESS or noise.
   
 - **`batch_params`** (`dict`, optional): For batch scaling/bounds/alignment.
   
