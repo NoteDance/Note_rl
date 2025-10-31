@@ -893,7 +893,6 @@ class RL:
                                 self.next_state_pool_list[p]=None
                                 self.reward_pool_list[p]=None
                                 self.done_pool_list[p]=None
-                            break
                     if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                         self.adjust_func()
                         if self.num_updates!=None and self.batch_counter%self.update_batches==0:
@@ -915,6 +914,8 @@ class RL:
                             train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
                             multi_worker_dataset = self.strategy.distribute_datasets_from_function(
                                     lambda input_context: self.dataset_fn(train_ds, self.batch, input_context)) 
+                    if self.PPO and self.batch_counter%self.update_batches==0:
+                        break
                 if self.stop_training==True:
                     return total_loss,num_batches
             return total_loss,num_batches
@@ -981,11 +982,12 @@ class RL:
                                 if self.PPO:
                                     self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
-                                    return (total_loss / num_batches).numpy()
                                 else:
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                                 self.adjust_func()
+                            if self.PPO and self.batch_counter%self.update_batches==0:
+                                return (total_loss / num_batches).numpy()
                 elif isinstance(self.strategy,tf.distribute.MultiWorkerMirroredStrategy):
                     with self.strategy.scope():
                         multi_worker_dataset = self.strategy.distribute_datasets_from_function(
@@ -1043,6 +1045,8 @@ class RL:
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                                 self.adjust_func()
+                            if self.PPO and self.batch_counter%self.update_batches==0:
+                                return train_loss.result().numpy()
                 batch_logs = {'loss': loss.numpy()}
                 for callback in self.callbacks:
                     if hasattr(callback, 'on_batch_end'):
@@ -1103,11 +1107,12 @@ class RL:
                                 if self.PPO:
                                     self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
-                                    return (total_loss / num_batches).numpy()
                                 else:
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                                 self.adjust_func()
+                            if self.PPO and self.batch_counter%self.update_batches==0:
+                                return (total_loss / num_batches).numpy()
                 elif isinstance(self.strategy,tf.distribute.MultiWorkerMirroredStrategy):
                     with self.strategy.scope():
                         multi_worker_dataset = self.strategy.distribute_datasets_from_function(
@@ -1163,6 +1168,8 @@ class RL:
                                 self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
                         if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                             self.adjust_func()
+                        if self.PPO and self.batch_counter%self.update_batches==0:
+                            return train_loss.result().numpy()
                 batch_logs = {'loss': loss.numpy()}
                 for callback in self.callbacks:
                     if hasattr(callback, 'on_batch_end'):
@@ -1211,7 +1218,6 @@ class RL:
                                         self.next_state_pool_list[p]=None
                                         self.reward_pool_list[p]=None
                                         self.done_pool_list[p]=None
-                                    break
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                                 self.adjust_func()
                                 if self.num_updates!=None and self.batch_counter%self.update_batches==0:
@@ -1231,6 +1237,8 @@ class RL:
                                     self.reward_pool=self.reward_pool[idx]
                                     self.done_pool=self.done_pool[idx]
                                     train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
+                            if self.PPO and self.batch_counter%self.update_batches==0:
+                                break
                 elif isinstance(self.strategy,tf.distribute.MultiWorkerMirroredStrategy):
                     with self.strategy.scope():
                         multi_worker_dataset = self.strategy.distribute_datasets_from_function(
@@ -1275,7 +1283,6 @@ class RL:
                                     self.next_state_pool_list[p]=None
                                     self.reward_pool_list[p]=None
                                     self.done_pool_list[p]=None
-                                break
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                                 self.adjust_func()
                                 if self.num_updates!=None and self.batch_counter%self.update_batches==0:
@@ -1312,6 +1319,8 @@ class RL:
                                         self.next_state_pool[7]=self.next_state_pool[7][idx]
                                         self.reward_pool[7]=self.reward_pool[7][idx]
                                         self.done_pool[7]=self.done_pool[7][idx]
+                            if self.PPO and self.batch_counter%self.update_batches==0:
+                                break
         if self.update_steps!=None:
             if self.step_counter%self.update_steps==0:
                 self.update_param()
@@ -1338,11 +1347,6 @@ class RL:
                     self.next_state_pool=None
                     self.reward_pool=None
                     self.done_pool=None
-                if self.PPO:
-                    if self.distributed_flag==True:
-                        return (total_loss / num_batches).numpy()
-                    else:
-                        return train_loss.result().numpy()
             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                 self.adjust_func()
                 if self.step_counter%self.update_steps==0:
@@ -1359,6 +1363,11 @@ class RL:
                         train_ds=tf.data.Dataset.from_tensor_slices((state_pool,action_pool,next_state_pool,reward_pool,done_pool)).batch(self.batch)
                     else:
                         train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).shuffle(len(self.state_pool)).batch(self.batch)
+            if self.PPO and self.step_counter%self.update_steps==0:
+                if self.distributed_flag==True:
+                    return (total_loss / num_batches).numpy()
+                else:
+                    return train_loss.result().numpy()
         else:
             self.update_param()
         if self.distributed_flag==True:
