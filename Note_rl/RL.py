@@ -860,7 +860,7 @@ class RL:
         total_loss = 0.0
         num_batches = 0
         
-        if self.PR==True or self.HER==True:
+        if self.PR==True or self.HER==True or self.TRL==True:
             if self.jit_compile==True:
                 total_loss = self.distributed_train_step(next(iterator), self.optimizer)
             else:
@@ -964,7 +964,7 @@ class RL:
         batches=int((len(self.state_pool)-len(self.state_pool)%self.batch)/self.batch)
         if len(self.state_pool)%self.batch!=0:
             batches+=1
-        if self.PR==True or self.HER==True:
+        if self.PR==True or self.HER==True or self.TRL==True:
             total_loss = 0.0
             num_batches = 0
             batch = 0
@@ -1584,7 +1584,7 @@ class RL:
         reward=0
         counter=0
         while True:
-            if self.random or (self.PR!=True and self.HER!=True):
+            if self.random or (self.PR!=True and self.HER!=True and self.TRL!=True):
                 if self.state_pool_list[p] is None:
                     index=p
                     self.inverse_len[index]=1
@@ -1609,7 +1609,7 @@ class RL:
             next_s=np.array(next_s)
             r=np.array(r)
             done=np.array(done)
-            if self.random or (self.PR!=True and self.HER!=True):
+            if self.random or (self.PR!=True and self.HER!=True and self.TRL!=True):
                 lock_list[index].acquire()
                 if self.num_steps!=None:
                     if counter==0:
@@ -1801,7 +1801,7 @@ class RL:
                         self.store_counter.append(0)
             self.reward=np.zeros(processes,dtype='float32')
             self.reward=Array('f',self.reward)
-            if self.HER!=True:
+            if self.HER!=True or self.TRL!=True:
                 lock_list=[mp.Lock() for _ in range(processes)]
             else:
                 lock_list=None
@@ -2032,7 +2032,7 @@ class RL:
                         self.store_counter.append(0)
             self.reward=np.zeros(processes,dtype='float32')
             self.reward=Array('f',self.reward)
-            if self.HER!=True:
+            if self.HER!=True or self.TRL!=True:
                 lock_list=[mp.Lock() for _ in range(processes)]
             else:
                 lock_list=None
