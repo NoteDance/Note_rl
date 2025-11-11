@@ -244,22 +244,24 @@ class RL:
             if isinstance(policy, Policy.SoftmaxPolicy):
                 a=policy.select_action(len(output), output)
             elif isinstance(policy, Policy.EpsGreedyQPolicy):
-                a=self.policy.select_action(output)
+                a=policy.select_action(output)
             elif isinstance(policy, Policy.AdaptiveEpsGreedyPolicy):
-                a=self.policy.select_action(output, self.step_counter)
+                a=policy.select_action(output, self.step_counter)
             elif isinstance(policy, Policy.GreedyQPolicy):
-                a=self.policy.select_action(output)
+                a=policy.select_action(output)
             elif isinstance(policy, Policy.BoltzmannQPolicy):
-                a=self.policy.select_action(output)
+                a=policy.select_action(output)
             elif isinstance(policy, Policy.MaxBoltzmannQPolicy):
-                a=self.policy.select_action(output)
+                a=policy.select_action(output)
             elif isinstance(policy, Policy.BoltzmannGumbelQPolicy):
-                a=self.policy.select_action(output, self.step_counter)
+                a=policy.select_action(output, self.step_counter)
         elif noise!=None:
             if self.IRL!=True:
                 a=(output+noise.sample()).numpy()
             else:
                 a=(output[1]+noise.sample()).numpy()
+        else:
+            a=output.numpy()
         if self.IRL!=True:
             return a
         else:
@@ -492,6 +494,19 @@ class RL:
         self.beta.assign(beta)
     
     
+    def adjust_num_updates(self, num_updates_params, ema=None, target=None):
+        if not hasattr(self, 'original_num_updates'):
+            self.original_num_updates = self.num_updates
+        if ema is None and not hasattr(self, 'ema_num_updates'):
+            self.ema_num_updates = None
+        smooth = num_updates_params.get('smooth', 0.2)
+        if ema is None:
+            ema = self.compute_ess(self.ema_ess, smooth)
+        target_num_updates = self.num_updates + num_updates_params['rate'] * (ema / target - 1.0)
+        num_updates = np.clip(target_num_updates, num_updates_params['min'], num_updates_params['max'])
+        self.num_updates = int(num_updates)
+    
+    
     def compute_ess(self, ema_ess, smooth):
         if self.PPO:
             scores = self.lambda_ * self.prioritized_replay.TD + (1.0-self.lambda_) * tf.abs(self.prioritized_replay.ratio - 1.0)
@@ -510,7 +525,7 @@ class RL:
         return float(ema)
     
     
-    def adjust_batch_size(self, smooth=0.2, batch_params=None, target_ess=None, alpha_params=None, eps_params=None, freq_params=None, tau_params=None, gamma_params=None, store_params=None, clip_params=None, beta_params=None):
+    def adjust_batch_size(self, smooth=0.2, batch_params=None, target_ess=None, alpha_params=None, eps_params=None, freq_params=None, tau_params=None, gamma_params=None, store_params=None, clip_params=None, beta_params=None, num_updates_params=None):
         if not hasattr(self, 'ema_ess'):
             self.ema_ess = None
         
@@ -554,6 +569,9 @@ class RL:
         
         if beta_params is not None and target_ess is not None:
             self.adjust_beta(beta_params, ema, target_ess)
+        
+        if num_updates_params is not None and target_ess is not None:
+            self.adjust_num_updates(num_updates_params, ema, target_ess)
     
     
     @tf.function(jit_compile=True)
@@ -683,6 +701,9 @@ class RL:
         if hasattr(self, 'original_beta'):
             self.beta.assign(self.original_beta)
             self.ema_beta = None
+        if hasattr(self, 'original_num_updates'):
+            self.num_updates = self.original_num_updates
+            self.ema_num_updates = None
     
     
     def adjust(self, target_ess=None, target_noise=None, num_samples=None, smooth=0.2, batch_params=None, alpha_params=None, eps_params=None, freq_params=None, tau_params=None, gamma_params=None, store_params=None, clip_params=None, beta_params=None, jit_compile=True):
@@ -733,7 +754,7 @@ class RL:
                     step_state = np.random.randint(0, len(self.state_pool)-1)
                     step_goal = np.random.randint(step_state+1, step_state+np.argmax(self.done_pool[step_state+1:])+2)
                     state = self.state_pool[step_state]
-                    next_state = self.next_state_pool[step_state+1]
+                    next_state = self.next_state_pool[step_state]
                     action = self.action_pool[step_state]
                     goal = self.state_pool[step_goal]
                     reward, done = self.reward_done_func(next_state, goal)
@@ -1503,7 +1524,7 @@ class RL:
                 step_state = np.random.randint(0, len(self.state_pool[7])-1)
                 step_goal = np.random.randint(step_state+1, step_state+np.argmax(self.done_pool[7][step_state+1:])+2)
                 state = self.state_pool[7][step_state]
-                next_state = self.next_state_pool[7][step_state+1]
+                next_state = self.next_state_pool[7][step_state]
                 action = self.action_pool[7][step_state]
                 goal = self.state_pool[7][step_goal]
                 reward, done = self.reward_done_func(next_state, goal)
