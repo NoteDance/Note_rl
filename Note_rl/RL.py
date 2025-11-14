@@ -337,7 +337,7 @@ class RL:
         return window_size
     
     
-    def adjust_batch(self, batch_params, ema, target):
+    def adjust_batch(self, batch_params, ema):
         if not hasattr(self, 'original_batch'):
             self.original_batch = self.batch
         if self.processes_her==None and self.processes_pr==None:
@@ -350,10 +350,7 @@ class RL:
         if batch_params['max'] is None:
             batch_params['max'] = max(1, buf_len)
             
-        if target != None:
-            batch = int(round(self.batch * ema / target * float(batch_params['scale'])))
-        else:
-            batch = int(round(ema * float(batch_params['scale'])))
+        batch = int(round(self.batch * ema / self.ess * float(batch_params['scale'])))
         batch = int(np.clip(batch, batch_params['min'], batch_params['max']))
         
         if batch_params['align'] is None:
@@ -369,7 +366,7 @@ class RL:
             self.ema_alpha = None
         smooth = alpha_params.get('smooth', 0.2)
         if ema is None:
-            ema = self.compute_ess(self.ema_ess, smooth)
+            ema = self.compute_ess(self.ema_alpha, smooth)
         if not GNS:
             target_alpha = self.alpha + alpha_params['rate'] * (ema / target - 1.0)
         else:
@@ -498,7 +495,7 @@ class RL:
         self.beta.assign(beta)
     
     
-    def adjust_num_updates(self, num_updates_params, ema=None, target=None):
+    def adjust_num_updates(self, num_updates_params, ema=None):
         if not hasattr(self, 'original_num_updates'):
             self.original_num_updates = self.num_updates
         if ema is None and not hasattr(self, 'ema_num_updates'):
@@ -506,7 +503,7 @@ class RL:
         smooth = num_updates_params.get('smooth', 0.2)
         if ema is None:
             ema = self.compute_ess(self.ema_ess, smooth)
-        target_num_updates = self.num_updates + num_updates_params['rate'] * (ema / target - 1.0)
+        target_num_updates = self.num_updates + num_updates_params['rate'] * (ema / self.ess - 1.0)
         num_updates = np.clip(target_num_updates, num_updates_params['min'], num_updates_params['max'])
         self.num_updates = int(num_updates)
     
@@ -1752,6 +1749,7 @@ class RL:
             else:
                 self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
+                self.ess=self.compute_ess(None,None)
                 self.prepare_flag=True
                 self.adjust_func()
                 self.prepare_flag=False
