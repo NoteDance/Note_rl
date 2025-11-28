@@ -785,7 +785,7 @@ class RL:
     
     @tf.function(jit_compile=True)
     def train_step(self, train_data, train_loss, optimizer):
-        with tf.GradientTape() as tape:
+        with tf.GradientTape(persistent=True) as tape:
             loss = self.__call__(*train_data)
         if type(optimizer)!=list:
             gradients = tape.gradient(loss, self.param)
@@ -800,7 +800,7 @@ class RL:
       
     @tf.function
     def train_step_(self, train_data, train_loss, optimizer):
-        with tf.GradientTape() as tape:
+        with tf.GradientTape(persistent=True) as tape:
             loss = self.__call__(*train_data)
         if type(optimizer)!=list:
             gradients = tape.gradient(loss, self.param)
@@ -814,7 +814,7 @@ class RL:
     
     
     def _train_step(self, train_data, optimizer):
-        with tf.GradientTape() as tape:
+        with tf.GradientTape(persistent=True) as tape:
             loss = self.__call__(*train_data)
             loss = self.compute_loss(loss)
         if type(optimizer)!=list:
