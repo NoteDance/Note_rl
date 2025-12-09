@@ -2099,7 +2099,6 @@ class RL:
                         process_list.append(process)
                         for process in process_list:
                             process.join()
-                        self.build_opt(self.optimizer)
                 else:
                     loss=self.train2()
                 episode_logs = {'loss': loss}
@@ -2165,7 +2164,6 @@ class RL:
                         process_list.append(process)
                         for process in process_list:
                             process.join()
-                        self.build_opt(self.optimizer)
                 else:
                     loss=self.train2()
                 episode_logs = {'loss': loss}
@@ -2210,6 +2208,7 @@ class RL:
                         print()
                 t2=time.time()
                 self.time+=(t2-t1)
+        self.build_opt(self.optimizer)
         time_=self.time-int(self.time)
         if time_<0.5:
             self.total_time=int(self.time)
@@ -2383,7 +2382,6 @@ class RL:
                             process_list.append(process)
                             for process in process_list:
                                 process.join()
-                            self.build_opt(self.optimizer)
                     else:
                         loss=self.train2()
                     episode_logs = {'loss': loss}
@@ -2450,7 +2448,6 @@ class RL:
                             process_list.append(process)
                             for process in process_list:
                                 process.join()
-                            self.build_opt(self.optimizer)
                     else:
                         loss=self.train2()
                     episode_logs = {'loss': loss}
@@ -2520,7 +2517,6 @@ class RL:
                             process_list.append(process)
                             for process in process_list:
                                 process.join()
-                            self.build_opt(self.optimizer)
                     else:
                         loss=self.train2()
                         
@@ -2593,7 +2589,6 @@ class RL:
                             process_list.append(process)
                             for process in process_list:
                                 process.join()
-                            self.build_opt(self.optimizer)
                     else:
                         loss=self.train2()
                         
@@ -2642,6 +2637,7 @@ class RL:
                             print()
                     t2=time.time()
                     self.time+=(t2-t1)
+        self.build_opt(self.optimizer)
         time_=self.time-int(self.time)
         if time_<0.5:
             self.total_time=int(self.time)
