@@ -1102,7 +1102,12 @@ class RL:
                             loss=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
                         else:
                             loss=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                        self.prioritized_replay.update()
+                        if not self.parallel_store_and_training:
+                            self.prioritized_replay.update()
+                        else:
+                            self.share_TD[7][self.prioritized_replay.index]=tf.abs(self.prioritized_replay.TD_[:self.prioritized_replay.batch])
+                            if self.PPO:
+                                self.share_ration[7][self.prioritized_replay.index]=self.prioritized_replay.ratio_[:self.prioritized_replay.batch]
                         total_loss+=loss
                         num_batches += 1
                         self.batch_counter+=1
@@ -1171,7 +1176,12 @@ class RL:
                             loss=self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
                         else:
                             loss=self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
-                        self.prioritized_replay.update()
+                        if not self.parallel_store_and_training:
+                            self.prioritized_replay.update()
+                        else:
+                            self.share_TD[7][self.prioritized_replay.index]=tf.abs(self.prioritized_replay.TD_[:self.prioritized_replay.batch])
+                            if self.PPO:
+                                self.share_ration[7][self.prioritized_replay.index]=self.prioritized_replay.ratio_[:self.prioritized_replay.batch]
                         self.batch_counter+=1
                         if self.pool_network==True:
                             if self.batch_counter%self.update_batches==0:
@@ -1259,7 +1269,12 @@ class RL:
                             loss=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
                         else:
                             loss=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                        self.prioritized_replay.update()
+                        if not self.parallel_store_and_training:
+                            self.prioritized_replay.update()
+                        else:
+                            self.share_TD[7][self.prioritized_replay.index]=tf.abs(self.prioritized_replay.TD_[:self.prioritized_replay.batch])
+                            if self.PPO:
+                                self.share_ration[7][self.prioritized_replay.index]=self.prioritized_replay.ratio_[:self.prioritized_replay.batch]
                         total_loss+=loss
                         num_batches += 1
                         self.batch_counter+=1
