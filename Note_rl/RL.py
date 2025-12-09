@@ -808,10 +808,20 @@ class RL:
         if type(optimizer)!=list:
             gradients = tape.gradient(loss, self.param)
             optimizer.apply_gradients(zip(gradients, self.param))
+            if self.parallel_store_and_training:
+                self.share_trainable_variables[7] = optimizer._trainable_variables
+                state_dict = dict()
+                optimizer.save_own_variables(state_dict)
+                self.share_opt_variables[7] = state_dict
         else:
             for i in range(len(optimizer)):
                 gradients = tape.gradient(loss, self.param[i])
                 optimizer[i].apply_gradients(zip(gradients, self.param[i]))
+                if self.parallel_store_and_training:
+                    self.share_trainable_variables[7][i] = optimizer[i]._trainable_variables
+                    state_dict = dict()
+                    optimizer[i].save_own_variables(state_dict)
+                    self.share_opt_variables[7][i] = state_dict
         train_loss(loss)
         return loss
       
@@ -823,10 +833,20 @@ class RL:
         if type(optimizer)!=list:
             gradients = tape.gradient(loss, self.param)
             optimizer.apply_gradients(zip(gradients, self.param))
+            if self.parallel_store_and_training:
+                self.share_trainable_variables[7] = optimizer._trainable_variables
+                state_dict = dict()
+                optimizer.save_own_variables(state_dict)
+                self.share_opt_variables[7] = state_dict
         else:
             for i in range(len(optimizer)):
                 gradients = tape.gradient(loss, self.param[i])
                 optimizer[i].apply_gradients(zip(gradients, self.param[i]))
+                if self.parallel_store_and_training:
+                    self.share_trainable_variables[7][i] = optimizer[i]._trainable_variables
+                    state_dict = dict()
+                    optimizer[i].save_own_variables(state_dict)
+                    self.share_opt_variables[7][i] = state_dict
         train_loss(loss)
         return loss
     
@@ -838,10 +858,20 @@ class RL:
         if type(optimizer)!=list:
             gradients = tape.gradient(loss, self.param)
             optimizer.apply_gradients(zip(gradients, self.param))
+            if self.parallel_store_and_training:
+                self.share_trainable_variables[7] = optimizer._trainable_variables
+                state_dict = dict()
+                optimizer.save_own_variables(state_dict)
+                self.share_opt_variables[7] = state_dict
         else:
             for i in range(len(optimizer)):
                 gradients = tape.gradient(loss, self.param[i])
                 optimizer[i].apply_gradients(zip(gradients, self.param[i]))
+                if self.parallel_store_and_training:
+                    self.share_trainable_variables[7][i] = optimizer[i]._trainable_variables
+                    state_dict = dict()
+                    optimizer[i].save_own_variables(state_dict)
+                    self.share_opt_variables[7][i] = state_dict
         return loss 
     
     
@@ -859,152 +889,6 @@ class RL:
                              axis=None)
     
     
-    @tf.function(jit_compile=True)
-    def compute_loss_jit(self, train_data):
-        with tf.GradientTape(persistent=True) as tape:
-            self.tape = tape
-            loss = self.__call__(*train_data)
-        return loss
-    
-    
-    @tf.function(jit_compile=True)
-    def opt_jit(self, i):
-        gradients = self.tape[0].gradient(self.loss_[0], self.param[i])
-        self.optimizer[i].apply_gradients(zip(gradients, self.param[i]))
-    
-    
-    @tf.function(jit_compile=True)
-    def compute_loss_jit_(self, train_loss):
-        train_loss(self.loss_[0])
-    
-    
-    def train_step_p(self, train_data, train_loss, optimizer):
-        self.loss_ = self.compute_loss_jit(train_data)
-        manager=mp.Manager()
-        self.loss_=manager.list([self.loss_])
-        self.tape=manager.list([self.tape])
-        process_list=[]
-        for i in range(len(optimizer)):
-            process=mp.Process(target=self.opt_jit,args=(i))
-            process.start()
-            process_list.append(process)
-        for process in process_list:
-            process.join()
-        del self.tape
-        self.compute_loss_(train_loss)
-        return self.loss_[0]
-    
-    
-    @tf.function
-    def _compute_loss(self, train_data):
-        with tf.GradientTape(persistent=True) as tape:
-            self.tape = tape
-            loss = self.__call__(*train_data)
-        return loss
-    
-    
-    @tf.function
-    def opt_(self, i):
-        gradients = self.tape[0].gradient(self.loss_[0], self.param[i])
-        self.optimizer[i].apply_gradients(zip(gradients, self.param[i]))
-    
-    
-    @tf.function
-    def compute_loss_(self, train_loss):
-        train_loss(self.loss_[0])
-    
-    
-    def train_step_p_(self, train_data, train_loss, optimizer):
-        self.loss_ = self._compute_loss(train_data)
-        manager=mp.Manager()
-        self.loss_=manager.list([self.loss_])
-        self.tape=manager.list([self.tape])
-        process_list=[]
-        for i in range(len(optimizer)):
-            process=mp.Process(target=self.opt_,args=(i))
-            process.start()
-            process_list.append(process)
-        for process in process_list:
-            process.join()
-        del self.tape
-        self.compute_loss_(train_loss)
-        return self.loss_[0]
-    
-    
-    @tf.function(jit_compile=True)
-    def compute_loss_jit_d(self, train_data):
-        with tf.GradientTape(persistent=True) as tape:
-            self.tape = tape
-            loss = self.__call__(*train_data)
-            loss = self.compute_loss(loss)
-            self.loss_ = loss
-        return loss
-    
-    
-    def opt_jit_d(self, optimizer, i):
-        gradients = self.tape[0].gradient(self.loss_[0], self.param[i])
-        optimizer.apply_gradients(zip(gradients, self.param[i]))
-    
-    
-    @tf.function(jit_compile=True)
-    def opt_jit_d_(self, i):
-        self.strategy.run(self.opt_jit_d, args=(self.optimizer[i], i))
-        
-
-    def distributed_train_step_p(self, dataset_inputs, optimizer, strategy):
-        per_replica_losses = strategy.run(self.compute_loss_jit_d, args=(dataset_inputs))
-        manager=mp.Manager()
-        self.loss_=manager.list([self.loss_])
-        self.tape=manager.list([self.tape])
-        process_list=[]
-        for i in range(len(optimizer)):
-            process=mp.Process(target=self.opt_jit_d_,args=(i))
-            process.start()
-            process_list.append(process)
-        for process in process_list:
-            process.join()
-        del self.tape
-        return strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses,
-                             axis=None)
-
-
-    @tf.function
-    def compute_loss_d(self, train_data):
-        with tf.GradientTape(persistent=True) as tape:
-            self.tape = tape
-            loss = self.__call__(*train_data)
-            loss = self.compute_loss(loss)
-            self.loss_ = loss
-        return loss
-    
-    
-    def opt_d(self, optimizer, i):
-        gradients = self.tape[0].gradient(self.loss_[0], self.param[i])
-        optimizer.apply_gradients(zip(gradients, self.param[i]))
-    
-    
-    @tf.function
-    def opt_d_(self, i):
-        self.strategy.run(self.opt_d, args=(self.optimizer[i], i))
-        
-
-    def distributed_train_step_p_(self, dataset_inputs, optimizer, strategy):
-        per_replica_losses,acc = strategy.run(self.compute_loss_d, args=(dataset_inputs))
-        manager=mp.Manager()
-        self.loss_=manager.list([self.loss_])
-        self.tape=manager.list([self.tape])
-        process_list=[]
-        for i in range(len(optimizer)):
-            process=mp.Process(target=self.opt_d_,args=(i))
-            process.start()
-            process_list.append(process)
-        for process in process_list:
-            process.join()
-        del self.tape
-        return strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses,
-                             axis=None)
-    
-    
     def CTL(self, multi_worker_dataset, num_steps_per_episode=None, lock_list_=None):
         iterator = iter(multi_worker_dataset)
         total_loss = 0.0
@@ -1012,15 +896,9 @@ class RL:
         
         if self.PR==True or self.HER==True or self.TRL==True:
             if self.jit_compile==True:
-                if not self.opt_p:
-                    total_loss = self.distributed_train_step(next(iterator), self.optimizer)
-                else:
-                    total_loss = self.distributed_train_step_p(next(iterator), self.optimizer)
+                total_loss = self.distributed_train_step(next(iterator), self.optimizer)
             else:
-                if not self.opt_p:
-                    total_loss = self.distributed_train_step_(next(iterator), self.optimizer)
-                else:
-                    total_loss = self.distributed_train_step_p_(next(iterator), self.optimizer)
+                total_loss = self.distributed_train_step_(next(iterator), self.optimizer)
             self.prioritized_replay.update()
             self.batch_counter += 1
             if self.pool_network==True:
@@ -1081,15 +959,9 @@ class RL:
                     if hasattr(callback, 'on_batch_begin'):
                         callback.on_batch_begin(batch, logs={})
                 if self.jit_compile==True:
-                    if not self.opt_p:
-                        loss = self.distributed_train_step(next(iterator), self.optimizer)
-                    else:
-                        loss = self.distributed_train_step_p(next(iterator), self.optimizer)
+                    loss = self.distributed_train_step(next(iterator), self.optimizer)
                 else:
-                    if not self.opt_p:
-                        loss = self.distributed_train_step_(next(iterator), self.optimizer)
-                    else:
-                        loss = self.distributed_train_step_p_(next(iterator), self.optimizer)
+                    loss = self.distributed_train_step_(next(iterator), self.optimizer)
                 total_loss += loss
                 batch_logs = {'loss': loss.numpy()}
                 for callback in self.callbacks:
@@ -1139,6 +1011,33 @@ class RL:
                 if self.stop_training==True:
                     return total_loss,num_batches
             return total_loss,num_batches
+        
+        
+    def build_opt(self, optimizer=None):
+        if optimizer is None:
+            if type(self.optimizer)==list:
+                optimizer=[]
+                for i in range(len(self.optimizer)):
+                    optimizer.append(self.share_opt_class[7][i]())
+                    optimizer.from_config(self.share_opt.config[7][i])
+                    if self.share_trainable_variables[7][i] is not None:
+                        optimizer.build(self.share_trainable_variables[7][i])
+                        optimizer.load_own_variables(self.share_opt_variables[7][i])
+            else:
+                optimizer = self.share_opt_class[7]()
+                optimizer.from_config(self.share_opt.config[7])
+                if self.share_trainable_variables[7] is not None:
+                    optimizer.build(self.share_trainable_variables[7])
+                    optimizer.load_own_variables(self.share_opt_variables[7])
+            return optimizer
+        else:
+            if type(optimizer)==list:
+                for i in range(len(optimizer)):
+                    optimizer.build(self.share_trainable_variables[7][i])
+                    optimizer.load_own_variables(self.share_opt_variables[7][i])
+            else:
+                optimizer.build(self.share_trainable_variables[7])
+                optimizer.load_own_variables(self.share_opt_variables[7])
     
     
     def train1(self, lock_list_=None):
@@ -1149,7 +1048,7 @@ class RL:
         if not self.parallel_store_and_training:
             optimizer=self.optimizer
         else:
-            optimizer=self.optimizer[7]
+            optimizer=self.build_opt()
         if self.PR==True or self.HER==True or self.TRL==True:
             total_loss = 0.0
             num_batches = 0
@@ -1171,15 +1070,9 @@ class RL:
                     train_ds=self.strategy.experimental_distribute_dataset(train_ds)
                     for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
                         if self.jit_compile==True:
-                            if not self.opt_p:
-                                loss=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                            else:
-                                loss=self.distributed_train_step_p([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
+                            loss=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
                         else:
-                            if not self.opt_p:
-                                loss=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                            else:
-                                loss=self.distributed_train_step_p_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
+                            loss=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
                         self.prioritized_replay.update()
                         total_loss+=loss
                         num_batches += 1
@@ -1246,15 +1139,9 @@ class RL:
                 elif self.distributed_flag!=True:
                     for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
                         if self.jit_compile==True:
-                            if not self.opt_p:
-                                loss=self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
-                            else:
-                                loss=self.train_step_p([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
+                            loss=self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
                         else:
-                            if not self.opt_p:
-                                loss=self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
-                            else:
-                                loss=self.train_step_p_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
+                            loss=self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
                         self.prioritized_replay.update()
                         self.batch_counter+=1
                         if self.pool_network==True:
@@ -1340,15 +1227,9 @@ class RL:
                     train_ds=self.strategy.experimental_distribute_dataset(train_ds)
                     for state_batch,action_batch,next_state_batch,reward_batch,done_batch in train_ds:
                         if self.jit_compile==True:
-                            if not self.opt_p:
-                                loss=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                            else:
-                                loss=self.distributed_train_step_p([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
+                            loss=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
                         else:
-                            if not self.opt_p:
-                                loss=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                            else:
-                                loss=self.distributed_train_step_p_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
+                            loss=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
                         self.prioritized_replay.update()
                         total_loss+=loss
                         num_batches += 1
@@ -1414,15 +1295,9 @@ class RL:
                         return (total_loss / num_batches).numpy()
                 elif self.distributed_flag!=True:
                     if self.jit_compile==True:
-                        if not self.opt_p:
-                            loss=self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
-                        else:
-                           loss=self.train_step_p([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer) 
+                        loss=self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
                     else:
-                        if not self.opt_p:
-                            loss=self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
-                        else:
-                            loss=self.train_step_p_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
+                        loss=self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
                     self.batch_counter+=1
                     if self.pool_network==True:
                         if self.batch_counter%self.update_batches==0:
@@ -1509,15 +1384,9 @@ class RL:
                             if hasattr(callback, 'on_batch_begin'):
                                 callback.on_batch_begin(batch, logs={})
                         if self.jit_compile==True:
-                            if not self.opt_p:
-                                loss=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                            else:
-                                loss=self.distributed_train_step_p([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
+                            loss=self.distributed_train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
                         else:
-                            if not self.opt_p:
-                                loss=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
-                            else:
-                                loss=self.distributed_train_step_p_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
+                            loss=self.distributed_train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],optimizer,self.strategy)
                         total_loss+=loss
                         batch_logs = {'loss': loss.numpy()}
                         for callback in self.callbacks:
@@ -1585,15 +1454,9 @@ class RL:
                         if hasattr(callback, 'on_batch_begin'):
                             callback.on_batch_begin(batch, logs={})
                     if self.jit_compile==True:
-                        if not self.opt_p:
-                            loss=self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
-                        else:
-                           loss=self.train_step_p([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer) 
+                        loss=self.train_step([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
                     else:
-                        if not self.opt_p:
-                            loss=self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
-                        else:
-                            loss=self.train_step_p_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
+                        loss=self.train_step_([state_batch,action_batch,next_state_batch,reward_batch,done_batch],self.train_loss,optimizer)
                     batch_logs = {'loss': loss.numpy()}
                     for callback in self.callbacks:
                         if hasattr(callback, 'on_batch_end'):
@@ -2075,7 +1938,7 @@ class RL:
             del self.reward_list[0]
     
     
-    def train(self, train_loss, optimizer=None, episodes=None, pool_network=True, parallel_store_and_training=False, processes=None, num_store=1, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, window_size_ppo=None, window_size_pr=None, opt_p=False, jit_compile=True, random=False, save_data=True, p=None):
+    def train(self, train_loss, optimizer=None, episodes=None, pool_network=True, parallel_store_and_training=False, processes=None, num_store=1, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, window_size_ppo=None, window_size_pr=None, jit_compile=True, random=False, save_data=True, p=None):
         avg_reward=None
         if p!=0:
             if p==None:
@@ -2098,19 +1961,28 @@ class RL:
         if pool_network:
             manager=mp.Manager()
         self.parallel_store_and_training=parallel_store_and_training
-        if opt_p:
-            self.param=manager.list(self.param)
-            self.optimizer=manager.list(self.optimizer)
         if parallel_store_and_training:
             lock_list_=[mp.Lock() for _ in range(processes)]
-            optimizer=manager.dict()
-            optimizer[7]=self.optimizer
-            self.optimizer=optimizer
+            self.param=manager.list(self.param)
             self.share_state_pool=manager.dict()
-            self.share_action_pool_list=manager.dict()
-            self.share_next_state_pool_list=manager.dict()
-            self.share_reward_pool_list=manager.dict()
-            self.share_done_pool_list=manager.dict()
+            self.share_action_pool=manager.dict()
+            self.share_next_state_pool=manager.dict()
+            self.share_reward_pool=manager.dict()
+            self.share_done_pool=manager.dict()
+            self.share_opt_class=manager.dict()
+            self.share_trainable_variables=manager.dict()
+            self.share_opt_config=manager.dict()
+            self.share_opt_variables=manager.dict()
+            if type(self.optimizer)==list:
+                self.share_opt_class[7]=[opt.__class__ for opt in self.optimizer]
+                self.share_trainable_variables[7]=[None for _ in self.optimizer]
+                self.share_opt.config[7]=[opt.get_config() for opt in self.optimizer]
+                self.share_opt_variables[7]=[None for _ in self.optimizer]
+            else:
+                self.share_opt_class[7]=self.optimizer.__class__
+                self.share_trainable_variables[7]=None
+                self.share_opt.config[7]=self.optimizer.get_config()
+                self.share_opt_variables[7]=None
         else:
             lock_list_=None
         self.processes=processes
@@ -2122,7 +1994,6 @@ class RL:
         self.window_size_=window_size_
         self.window_size_ppo=window_size_ppo
         self.window_size_pr=window_size_pr
-        self.opt_p=opt_p
         self.jit_compile=jit_compile
         self.random=random
         if self.num_updates!=None:
@@ -2220,6 +2091,7 @@ class RL:
                         process_list.append(process)
                         for process in process_list:
                             process.join()
+                        self.build_opt(self.optimizer)
                 else:
                     loss=self.train2()
                 episode_logs = {'loss': loss}
@@ -2285,6 +2157,7 @@ class RL:
                         process_list.append(process)
                         for process in process_list:
                             process.join()
+                        self.build_opt(self.optimizer)
                 else:
                     loss=self.train2()
                 episode_logs = {'loss': loss}
@@ -2343,7 +2216,7 @@ class RL:
         return
     
     
-    def distributed_training(self, optimizer=None, strategy=None, episodes=None, num_episodes=None, pool_network=True, parallel_store_and_training=False, processes=None, num_store=1, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, window_size_ppo=None, window_size_pr=None, opt_p=False, jit_compile=True, random=False, save_data=True, p=None):
+    def distributed_training(self, optimizer=None, strategy=None, episodes=None, num_episodes=None, pool_network=True, parallel_store_and_training=False, processes=None, num_store=1, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, window_size_ppo=None, window_size_pr=None, jit_compile=True, random=False, save_data=True, p=None):
         avg_reward=None
         if num_episodes!=None:
             episodes=num_episodes
@@ -2369,19 +2242,28 @@ class RL:
         if pool_network:
             manager=mp.Manager()
         self.parallel_store_and_training=parallel_store_and_training
-        if opt_p:
-            self.param=manager.list(self.param)
-            self.optimizer=manager.list(self.optimizer)
         if parallel_store_and_training:
             lock_list_=[mp.Lock() for _ in range(processes)]
-            optimizer=manager.dict()
-            optimizer[7]=self.optimizer
-            self.optimizer=optimizer
+            self.param=manager.list(self.param)
             self.share_state_pool=manager.dict()
-            self.share_action_pool_list=manager.dict()
-            self.share_next_state_pool_list=manager.dict()
-            self.share_reward_pool_list=manager.dict()
-            self.share_done_pool_list=manager.dict()
+            self.share_action_pool=manager.dict()
+            self.share_next_state_pool=manager.dict()
+            self.share_reward_pool=manager.dict()
+            self.share_done_pool=manager.dict()
+            self.share_opt_class=manager.dict()
+            self.share_trainable_variables=manager.dict()
+            self.share_opt_config=manager.dict()
+            self.share_opt_variables=manager.dict()
+            if type(self.optimizer)==list:
+                self.share_opt_class[7]=[opt.__class__ for opt in self.optimizer]
+                self.share_trainable_variables[7]=[None for _ in self.optimizer]
+                self.share_opt.config[7]=[opt.get_config() for opt in self.optimizer]
+                self.share_opt_variables[7]=[None for _ in self.optimizer]
+            else:
+                self.share_opt_class[7]=self.optimizer.__class__
+                self.share_trainable_variables[7]=None
+                self.share_opt.config[7]=self.optimizer.get_config()
+                self.share_opt_variables[7]=None
         else:
             lock_list_=None
         self.processes=processes
@@ -2393,7 +2275,6 @@ class RL:
         self.window_size_=window_size_
         self.window_size_ppo=window_size_ppo
         self.window_size_pr=window_size_pr
-        self.opt_p=opt_p
         self.jit_compile=jit_compile
         self.random=random
         if self.num_updates!=None:
@@ -2494,6 +2375,7 @@ class RL:
                             process_list.append(process)
                             for process in process_list:
                                 process.join()
+                            self.build_opt(self.optimizer)
                     else:
                         loss=self.train2()
                     episode_logs = {'loss': loss}
@@ -2560,6 +2442,7 @@ class RL:
                             process_list.append(process)
                             for process in process_list:
                                 process.join()
+                            self.build_opt(self.optimizer)
                     else:
                         loss=self.train2()
                     episode_logs = {'loss': loss}
@@ -2629,6 +2512,7 @@ class RL:
                             process_list.append(process)
                             for process in process_list:
                                 process.join()
+                            self.build_opt(self.optimizer)
                     else:
                         loss=self.train2()
                         
@@ -2701,6 +2585,7 @@ class RL:
                             process_list.append(process)
                             for process in process_list:
                                 process.join()
+                            self.build_opt(self.optimizer)
                     else:
                         loss=self.train2()
                         
