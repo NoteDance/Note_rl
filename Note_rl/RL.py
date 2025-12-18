@@ -3,9 +3,7 @@ import Note_rl.policy as Policy
 import Note_rl.prioritized_replay.pr as pr
 from Note_rl.assign_param import assign_param
 import multiprocessing as mp
-from multiprocessing import Array
 import numpy as np
-import numpy.ctypeslib as npc
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import math
