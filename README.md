@@ -18,330 +18,660 @@ matplotlib>=3.8.4
 
 python>=3.10
 
-# Train:
-**Keras:**
-Agent built with Keras.
+# RL.set:
+
+Configures the core hyperparameters and features of the reinforcement learning agent. This method must be called before training to specify the algorithm behavior, replay buffer settings, and advanced options (e.g., PPO, HER, Prioritized Replay).
+
+**Parameters:**
+
+| Parameter             | Type                  | Default    | Description |
+|-----------------------|-----------------------|------------|-------------|
+| `policy`              | Policy object or list | `None`     | Exploration policy (e.g., `rl.EpsGreedyQPolicy`, `rl.SoftmaxPolicy`). Can be a list for multi-agent setups. |
+| `noise`               | Noise object or list  | `None`     | Action noise for continuous control (e.g., Ornstein-Uhlenbeck noise). Can be a list for multi-agent. |
+| `pool_size`           | `int`                 | `None`     | Maximum size of the replay buffer (experience pool). |
+| `batch`               | `int`                 | `None`     | Mini-batch size for training updates. |
+| `num_updates`         | `int` or `None`       | `None`     | Number of training updates per episode (if `None`, trains on full buffer). |
+| `num_steps`           | `int` or `None`       | `None`     | Number of environment steps per stored transition (for n-step returns). |
+| `update_batches`      | `int`                 | `None`     | Frequency of parameter updates when using pooled networks (e.g., update target every N batches). |
+| `update_steps`        | `int` or `None`       | `None`     | Frequency of parameter updates in steps (alternative to `update_batches`). |
+| `trial_count`         | `int` or `None`       | `None`     | Number of recent episodes to average for early stopping or best-model saving. |
+| `criterion`           | `float` or `None`      | `None`     | Reward threshold for early stopping (stops when average reward over `trial_count` meets/exceeds this). |
+| `PPO`                 | `bool`                | `False`    | Enable Proximal Policy Optimization mode (uses ratio-based prioritization). |
+| `HER`                 | `bool`                | `False`    | Enable Hindsight Experience Replay. |
+| `TRL`                 | `bool`                | `False`    | Enable Trajectory-based Reinforcement Learning (custom triplet sampling). |
+| `MARL`                | `bool`                | `False`    | Enable Multi-Agent Reinforcement Learning mode. |
+| `PR`                  | `bool`                | `False`    | Enable Prioritized Experience Replay. |
+| `IRL`                 | `bool`                | `False`    | Enable Inverse Reinforcement Learning mode. |
+| `initial_ratio`       | `float`               | `1.0`      | Initial importance-sampling ratio for PPO prioritized replay. |
+| `initial_TD`          | `float`               | `7.0`      | Initial TD-error value for prioritized replay initialization. |
+| `lambda_`             | `float`               | `0.5`      | Weighting factor for combining TD-error and ratio deviation in PPO prioritization. |
+| `alpha`               | `float`               | `0.7`      | Prioritization exponent for experience sampling. |
+
+**Returns:**  
+None (configures the agent in-place).
+
+**Example:**
+```python
+rl_agent.set(
+    policy=rl.EpsGreedyQPolicy(eps=0.1),
+    noise=None,
+    pool_size=100000,
+    batch=64,
+    num_updates=4,
+    PPO=True,
+    PR=True,
+    trial_count=100,
+    criterion=500.0
+)
+```
+
+# RL.train:
+
+Trains the agent using single-process or multi-process experience collection and training.
+
+**Parameters:**
+
+| Parameter                       | Type                  | Default   | Description |
+|---------------------------------|-----------------------|-----------|-------------|
+| `train_loss`                    | `tf.keras.metrics.Metric` | **Required** | Metric (e.g., `tf.keras.metrics.Mean()`) to track training loss. |
+| `optimizer`                     | Optimizer or list     | `None`    | Training optimizer(s). Uses previously set optimizer if `None`. |
+| `episodes`                      | `int` or `None`       | `None`    | Number of episodes to train. If `None`, trains indefinitely. |
+| `pool_network`                  | `bool`                | `True`    | Use multiple parallel environments for faster data collection. |
+| `parallel_store_and_training`   | `bool`                | `True`    | Run experience collection and training in parallel processes. |
+| `processes`                     | `int` or `None`       | `None`    | Number of parallel environment processes (typically CPU cores). |
+| `num_store`                     | `int`                 | `1`       | Number of collection cycles per training update in parallel mode. |
+| `processes_her`                 | `int` or `None`       | `None`    | Parallel processes for HER sampling. |
+| `processes_pr`                  | `int` or `None`       | `None`    | Parallel processes for prioritized replay sampling. |
+| `window_size`                   | `int`, `float`, callable, or `None` | `None` | Buffer trimming: keep recent fraction or fixed number of transitions. |
+| `clearing_freq`                 | `int` or `None`       | `None`    | Frequency to clear old transitions from per-process buffers. |
+| `window_size_`                  | `int` or `None`       | `None`    | General fallback window size. |
+| `window_size_ppo`               | `int` or `None`       | `None`    | Window size specific to PPO prioritization. |
+| `window_size_pr`                | `int` or `None`       | `None`    | Window size specific to standard prioritized replay. |
+| `jit_compile`                   | `bool`                | `True`    | Enable XLA compilation for faster training steps. |
+| `random`                        | `bool`                | `False`   | Randomly distribute stored transitions across process buffers (load balancing). |
+| `save_data`                     | `bool`                | `True`    | Include replay buffer data when saving the model. |
+| `callbacks`                     | `list` or `None`      | `None`    | List of Keras-style callbacks (e.g., logging, early stopping). |
+| `p`                             | `int` or `None`       | `None`    | Print progress every `p` episodes (default: every 10). |
+
+**Returns:**  
+None. Prints progress, rewards, and total training time.
+
+**Example:**
+```python
+rl_agent.train(
+    train_loss=train_loss,
+    episodes=5000,
+    pool_network=True,
+    parallel_store_and_training=True,
+    processes=12,
+    jit_compile=True,
+    p=20
+)
+```
+
+# RL.distributed_training:
+
+Distributed version of `train` using TensorFlow distribution strategies (Mirrored, MultiWorkerMirrored, ParameterServer).
+
+**Parameters:**  
+All parameters from `train` **plus**:
+
+| Parameter                       | Type                  | Default   | Description |
+|---------------------------------|-----------------------|-----------|-------------|
+| `optimizer`                     | Optimizer or list     | `None`    | Same as `train`. |
+| `strategy`                      | `tf.distribute.Strategy` | **Required** | Distribution strategy (e.g., `tf.distribute.MirroredStrategy()`). |
+| `episodes`                      | `int` or `None`       | `None`    | Total episodes (used for MirroredStrategy). |
+| `num_episodes`                  | `int` or `None`       | `None`    | Alternative episode count (used for MultiWorker/ParameterServer). |
+
+**Returns:**  
+None. Training runs across GPUs/workers using the specified strategy.
+
+**Example (MirroredStrategy):**
+```python
+strategy = tf.distribute.MirroredStrategy()
+rl_agent.distributed_training(
+    train_loss=loss_metric,
+    strategy=strategy,
+    episodes=1000,
+    processes=8,
+    pool_network=True
+)
+```
+
+# Advanced Adaptive Hyperparameter Adjustment
+
+The `RL` class includes powerful adaptive mechanisms to dynamically tune hyperparameters during training based on **Effective Sample Size (ESS)** from prioritized weights or **gradient noise**. These methods help combat issues like weight collapse in prioritized replay, improve sample efficiency, and stabilize training. They are particularly useful with `PR=True` (Prioritized Replay) or `PPO=True`.
+
+These functions are typically called automatically during training if you set `self.adjust_func` (e.g., via a lambda), or you can invoke them manually after episodes.
+
+## `adjust_window_size(p=None, scale=1.0, ema=None)`
+
+Dynamically computes a window size for trimming the replay buffer to maintain healthy ESS (effective sample size). Low ESS indicates collapsed priorities; trimming removes low-priority old experiences.
+
+**Parameters:**
+
+| Parameter | Type              | Default | Description |
+|---------|-------------------|---------|-------------|
+| `p`     | `int` or `None`   | `None`  | Process index (for parallel/multi-environment mode). If `None`, uses global buffer. |
+| `scale` | `float`           | `1.0`   | Scaling factor for aggressiveness of trimming (higher = more aggressive removal). |
+| `ema`   | `float` or `None` | `None`  | Pre-computed EMA of ESS (for custom smoothing). If `None`, computed internally. |
+
+**Returns:**  
+`int` – The number of oldest experiences to remove (clamped to valid range).
+
+**Usage Note:**  
+Used internally when `window_size_func` is set or during prioritized buffer maintenance.
+
+**Example:**
+
+https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/keras/pool_network/PPO_pr.py
+https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/pytorch/pool_network/PPO_pr.py
+
+## `adabatch(num_samples, target_noise=1e-3, smooth=0.2, batch_params=None, alpha_params=None, eps_params=None, tau_params=None, gamma_params=None, clip_params=None, beta_params=None, jit_compile=True)`
+
+Gradient-noise-based adaptation (AdaBatch-style). Estimates variance of gradients across multiple mini-batches and adjusts hyperparameters to reach a target noise level.
+
+**Parameters:**
+
+| Parameter       | Type     | Default   | Description |
+|-----------------|----------|-----------|-------------|
+| `num_samples`   | `int`    | **Required** | Number of mini-batches to sample for variance estimation. |
+| `target_noise`  | `float`  | `1e-3`    | Desired gradient variance target. |
+| `smooth`        | `float`  | `0.2`     | EMA smoothing for noise estimate. |
+| `batch_params`, `alpha_params`, etc. | `dict` or `None` | `None` | Same as in `adjust_batch_size`. |
+| `jit_compile`   | `bool`   | `True`    | Use XLA compilation for faster gradient estimation. |
+
+## `adjust(target_ess=None, target_noise=None, num_samples=None, smooth=0.2, batch_params=None, alpha_params=None, ..., jit_compile=True)`
+
+Unified entry point for adaptation. Chooses between ESS-based (`target_ess`) and noise-based (`target_noise`) adjustment.
+
+**Parameters:**
+
+- If `target_ess` is provided → calls `adjust_batch_size`.
+- If `target_noise` is provided → calls `adabatch` (requires `num_samples`).
+
+All other parameters are passed through to the chosen method.
+
+**Example:**
+
+https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/keras/pool_network/PPO_pr.py
+https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/pytorch/pool_network/PPO_pr.py
+
+# Single-Machine Training
+
+## TensorFlow / Note / Keras
+
 ```python
 import tensorflow as tf
 from Note_rl.policy import EpsGreedyQPolicy
 from Note_rl.examples.keras.DQN import DQN
 
-model=DQN(4,128,2)
-model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10)
+# Basic DQN
+model = DQN(state_dim=4, hidden_size=128, action_dim=2)
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.01),
+    pool_size=10000,
+    batch=64,
+    update_steps=10
+)
+
 optimizer = tf.keras.optimizers.Adam()
 train_loss = tf.keras.metrics.Mean(name='train_loss')
-model.train(train_loss, optimizer, 100, pool_network=False)
 
-# If set criterion.
-# model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200)
-# model.train(train_loss, optimizer, 100, pool_network=False)
-
-# If save the model at intervals of 10 episode, with a maximum of 2 saved file, and the file name is model.dat.
-# model.path='model.dat'
-# model.save_freq=10
-# model. max_save_files=2
-# model.train(train_loss, optimizer, 100, pool_network=False)
-
-# If save parameters only
-# model.path='param.dat'
-# model.save_freq=10
-# model. max_save_files=2
-# model.save_param_only=True
-# model.train(train_loss, optimizer, 100, pool_network=False)
-
-# If save best only
-# model.path='model.dat'
-# model.save_best_only=True
-# model.train(train_loss, optimizer, 100, pool_network=False)
-
-# visualize
-# model.visualize_loss()
-# model.visualize_reward()
-# model.visualize_reward_loss()
-
-# animate agent
-# model.animate_agent(200)
-
-# save
-# model.save_param('param.dat')
-# model.save('model.dat')
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=100,
+    pool_network=False
+)
 ```
+
 ```python
-# Use PPO.
-import tensorflow as tf
-from Note_rl.policy import SoftmaxPolicy
+# DQN with early stopping
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.01),
+    pool_size=10000,
+    batch=64,
+    update_steps=10,
+    trial_count=10,
+    criterion=200.0
+)
+
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=100,
+    pool_network=False
+)
+```
+
+```python
+# Periodic checkpointing (max 2 files)
+model.path = 'model.dat'
+model.save_freq = 10
+model.max_save_files = 2
+
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=100,
+    pool_network=False
+)
+```
+
+```python
+# Save parameters only
+model.path = 'param.dat'
+model.save_freq = 10
+model.max_save_files = 2
+model.save_param_only = True
+
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=100,
+    pool_network=False
+)
+```
+
+```python
+# Save best model only
+model.path = 'model.dat'
+model.save_best_only = True
+
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=100,
+    pool_network=False
+)
+```
+
+```python
+# PPO example
 from Note_rl.examples.keras.PPO import PPO
 
-model=PPO(4,128,2,0.7,0.7)
-model.set(policy=SoftmaxPolicy(),pool_size=10000,batch=64,update_steps=1000,PPO=True)
-optimizer = [tf.keras.optimizers.Adam(1e-4),tf.keras.optimizers.Adam(5e-3)]
-train_loss = tf.keras.metrics.Mean(name='train_loss')
-model.train(train_loss, optimizer, 100, pool_network=False)
+model = PPO(state_dim=4, hidden_size=128, action_dim=2, clip=0.7, entropy_coef=0.7)
+model.set(
+    policy=SoftmaxPolicy(),
+    pool_size=10000,
+    batch=64,
+    update_steps=1000,
+    PPO=True
+)
+
+optimizer = [
+    tf.keras.optimizers.Adam(1e-4),   # policy optimizer
+    tf.keras.optimizers.Adam(5e-3)    # value optimizer
+]
+
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=100,
+    pool_network=False
+)
 ```
+
 ```python
-# Use HER.
-import tensorflow as tf
-from Note_rl.noise import GaussianWhiteNoiseProcess
+# HER (DDPG + HER)
 from Note_rl.examples.keras.DDPG_HER import DDPG
 
-model=DDPG(128,0.1,0.98,0.005)
-model.set(noise=GaussianWhiteNoiseProcess(),pool_size=10000,batch=256,criterion=-5,trial_count=10,HER=True)
-optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
-train_loss = tf.keras.metrics.Mean(name='train_loss')
-model.train(train_loss, optimizer, 2000, pool_network=False)
+model = DDPG(hidden_size=128, tau=0.1, gamma=0.98, lr=0.005)
+model.set(
+    noise=GaussianWhiteNoiseProcess(),
+    pool_size=10000,
+    batch=256,
+    trial_count=10,
+    criterion=-5.0,
+    HER=True
+)
+
+optimizer = [
+    tf.keras.optimizers.Adam(),  # actor
+    tf.keras.optimizers.Adam()   # critic
+]
+
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=2000,
+    pool_network=False
+)
 ```
+
 ```python
-# Use Multi-agent reinforcement learning.
-import tensorflow as tf
-from Note_rl.policy import SoftmaxPolicy
+# Multi-Agent (MADDPG)
 from Note_rl.examples.keras.MADDPG import DDPG
 
-model=DDPG(128,0.1,0.98,0.005)
-model.set(policy=SoftmaxPolicy(),pool_size=3000,batch=32,trial_count=10,MARL=True)
-optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
-train_loss = tf.keras.metrics.Mean(name='train_loss')
-model.train(train_loss, optimizer, 100, pool_network=False)
+model = DDPG(hidden_size=128, tau=0.1, gamma=0.98, lr=0.005)
+model.set(
+    policy=SoftmaxPolicy(),
+    pool_size=3000,
+    batch=32,
+    trial_count=10,
+    MARL=True
+)
+
+optimizer = [
+    tf.keras.optimizers.Adam(),  # actor
+    tf.keras.optimizers.Adam()   # critic
+]
+
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=100,
+    pool_network=False
+)
 ```
+
 ```python
-# This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
-import tensorflow as tf
-from Note_rl.policy import EpsGreedyQPolicy
+# Pool Network (parallel environments)
 from Note_rl.examples.keras.pool_network.DQN import DQN
 
-model=DQN(4,128,2,7)
-model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,update_batches=17)
-optimizer = tf.keras.optimizers.Adam()
-train_loss = tf.keras.metrics.Mean(name='train_loss')
-model.train(train_loss, optimizer, 100, pool_network=True, processes=7)
+model = DQN(state_dim=4, hidden_size=128, action_dim=2, processes=7)
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.01),
+    pool_size=10000,
+    batch=64,
+    update_batches=17
+)
+
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=100,
+    pool_network=True,
+    processes=7
+)
 ```
-**PyTorch:**
-Agent built with PyTorch.
+
+```python
+# Pool Network + Parallel HER sampling
+from Note_rl.examples.keras.pool_network.DDPG_HER import DDPG
+
+model = DDPG(hidden_size=128, tau=0.1, gamma=0.98, lr=0.005, processes=7)
+model.set(
+    noise=GaussianWhiteNoiseProcess(),
+    pool_size=10000,
+    batch=256,
+    trial_count=10,
+    HER=True
+)
+
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=2000,
+    pool_network=True,
+    processes=7,
+    processes_her=4
+)
+```
+
+```python
+# Pool Network + Parallel Prioritized Replay sampling
+from Note_rl.examples.keras.pool_network.DQN_pr import DQN
+
+model = DQN(state_dim=4, hidden_size=128, action_dim=2, processes=7)
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.01),
+    pool_size=10000,
+    batch=64,
+    update_batches=17,
+    PR=True
+)
+
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=100,
+    pool_network=True,
+    processes=7,
+    processes_pr=4
+)
+```
+
+## PyTorch
+
 ```python
 import torch
-from Note_rl.policy import EpsGreedyQPolicy
+from Note.RL import rl
 from Note_rl.examples.pytorch.DQN import DQN
 
-model=DQN(4,128,2)
-model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10)
+# Basic DQN
+model = DQN(state_dim=4, hidden_size=128, action_dim=2)
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.01),
+    pool_size=10000,
+    batch=64,
+    update_steps=10
+)
+
 optimizer = torch.optim.Adam(model.param)
-model.train(optimizer, 100)
 
-# If set criterion.
-# model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200)
-# model.train(optimizer, 100)
-
-# If use prioritized replay.
-# model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10,trial_count=10,criterion=200,PR=True,initial_TD=7,alpha=0.7)
-# model.train(optimizer, 100)
-
-# If save the model at intervals of 10 episode, with a maximum of 2 saved file, and the file name is model.dat.
-# model.path='model.dat'
-# model.save_freq=10
-# model. max_save_files=2
-# model.train(optimizer, 100)
-
-# If save parameters only
-# model.path='param.dat'
-# model.save_freq=10
-# model. max_save_files=2
-# model.save_param_only=True
-# model.train(optimizer, 100)
-
-# If save best only
-# model.path='model.dat'
-# model.save_best_only=True
-# model.train(optimizer, 100)
-
-# visualize
-# model.visualize_loss()
-# model.visualize_reward()
-# model.visualize_reward_loss()
-
-# animate agent
-# model.animate_agent(200)
-
-# save
-# model.save_param('param.dat')
-# model.save('model.dat')
+model.train(
+    optimizer=optimizer,
+    episodes=100,
+    pool_network=False
+)
 ```
+
 ```python
-# Use HER.
-import torch
-from Note_rl.noise import GaussianWhiteNoiseProcess
+# With early stopping
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.01),
+    pool_size=10000,
+    batch=64,
+    update_steps=10,
+    trial_count=10,
+    criterion=200.0
+)
+
+model.train(optimizer=optimizer, episodes=100, pool_network=False)
+```
+
+```python
+# Prioritized Replay
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.01),
+    pool_size=10000,
+    batch=64,
+    update_steps=10,
+    PR=True,
+    initial_TD=7.0,
+    alpha=0.7
+)
+
+model.train(optimizer=optimizer, episodes=100, pool_network=False)
+```
+
+```python
+# HER (DDPG + HER)
 from Note_rl.examples.pytorch.DDPG_HER import DDPG
 
-model=DDPG(128,0.1,0.98,0.005)
-model.set(noise=GaussianWhiteNoiseProcess(),pool_size=10000,batch=256,criterion=-5,trial_count=10,HER=True)
-optimizer = [torch.optim.Adam(model.param[0]),torch.optim.Adam(model.param[1])]
-model.train(optimizer, 2000)
+model = DDPG(hidden_size=128, tau=0.1, gamma=0.98, lr=0.005)
+model.set(
+    noise=GaussianWhiteNoiseProcess(),
+    pool_size=10000,
+    batch=256,
+    trial_count=10,
+    criterion=-5.0,
+    HER=True
+)
+
+optimizer = [
+    torch.optim.Adam(model.param[0]),  # actor
+    torch.optim.Adam(model.param[1])   # critic
+]
+
+model.train(optimizer=optimizer, episodes=2000, pool_network=False)
 ```
+
 ```python
-# Use Multi-agent reinforcement learning.
-import torch
-from Note_rl.policy import SoftmaxPolicy
+# Multi-Agent (MADDPG)
 from Note_rl.examples.pytorch.MADDPG import DDPG
 
-model=DDPG(128,0.1,0.98,0.005)
-model.set(policy=SoftmaxPolicy(),pool_size=3000,batch=32,trial_count=10,MARL=True)
-optimizer = [torch.optim.Adam(model.param[0]),torch.optim.Adam(model.param[1])]
-model.train(optimizer, 100)
+model = DDPG(hidden_size=128, tau=0.1, gamma=0.98, lr=0.005)
+model.set(
+    policy=SoftmaxPolicy(),
+    pool_size=3000,
+    batch=32,
+    trial_count=10,
+    MARL=True
+)
+
+optimizer = [
+    torch.optim.Adam(model.param[0]),
+    torch.optim.Adam(model.param[1])
+]
+
+model.train(optimizer=optimizer, episodes=100, pool_network=False)
 ```
+
 ```python
-# This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
-import torch
-from Note_rl.policy import EpsGreedyQPolicy
+# Pool Network (parallel environments)
 from Note_rl.examples.pytorch.pool_network.DQN import DQN
 
-model=DQN(4,128,2,7)
-model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_batches=17)
-optimizer = torch.optim.Adam(model.param)
-model.train(optimizer, 100, pool_network=True, processes=7)
+model = DQN(state_dim=4, hidden_size=128, action_dim=2, processes=7)
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.01),
+    pool_size=10000,
+    batch=64,
+    update_batches=17
+)
+
+model.train(
+    optimizer=optimizer,
+    episodes=100,
+    pool_network=True,
+    processes=7
+)
 ```
+
 ```python
-# Use HER.
-# This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
-# Furthermore use Python’s multiprocessing module to speed up getting a batch of data.
-import torch
-from Note_rl.noise import GaussianWhiteNoiseProcess
+# Pool Network + Parallel HER sampling
 from Note_rl.examples.pytorch.pool_network.DDPG_HER import DDPG
 
-model=DDPG(128,0.1,0.98,0.005,7)
-model.set(noise=GaussianWhiteNoiseProcess(),pool_size=10000,batch=256,trial_count=10,HER=True)
-optimizer = [torch.optim.Adam(model.param[0]),torch.optim.Adam(model.param[1])]
-model.train(train_loss, optimizer, 2000, pool_network=True, processes=7, processes_her=4)
+model = DDPG(hidden_size=128, tau=0.1, gamma=0.98, lr=0.005, processes=7)
+model.set(
+    noise=rl.GaussianWhiteNoiseProcess(),
+    pool_size=10000,
+    batch=256,
+    trial_count=10,
+    HER=True
+)
+
+optimizer = [
+    torch.optim.Adam(model.param[0]),
+    torch.optim.Adam(model.param[1])
+]
+
+model.train(
+    optimizer=optimizer,
+    episodes=2000,
+    pool_network=True,
+    processes=7,
+    processes_her=4
+)
 ```
 
-# Distributed training:
-**MirroredStrategy:**
-Agent built with Keras.
+# Distributed Training (TensorFlow)
+
+## MirroredStrategy (Multi-GPU, single machine)
+
 ```python
 import tensorflow as tf
 from Note_rl.policy import EpsGreedyQPolicy
 from Note_rl.examples.keras.DQN import DQN
 
 strategy = tf.distribute.MirroredStrategy()
-BATCH_SIZE_PER_REPLICA = 64
-GLOBAL_BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
+batch_per_replica = 64
+global_batch = batch_per_replica * strategy.num_replicas_in_sync
 
 with strategy.scope():
-  model=DQN(4,128,2)
-  optimizer = tf.keras.optimizers.Adam()
-model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=64,update_steps=10)
-model.distributed_training(GLOBAL_BATCH_SIZE, optimizer, strategy, 100, pool_network=False)
+    model = DQN(state_dim=4, hidden_size=128, action_dim=2)
+    optimizer = tf.keras.optimizers.Adam()
 
-# If set criterion.
-# model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=GLOBAL_BATCH_SIZE,update_steps=10,trial_count=10,criterion=200)
-# model.distributed_training(optimizer, strategy, 100, pool_network=False)
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.01),
+    pool_size=10000,
+    batch=global_batch,
+    update_steps=10
+)
 
-# If save the model at intervals of 10 episode, with a maximum of 2 saved file, and the file name is model.dat.
-# model.path='model.dat'
-# model.save_freq=10
-# model. max_save_files=2
-# model.distributed_training(optimizer, strategy, 100, pool_network=False)
-
-# If save parameters only
-# model.path='param.dat'
-# model.save_freq=10
-# model. max_save_files=2
-# model.save_param_only=True
-# model.distributed_training(optimizer, strategy, 100, pool_network=False)
-
-# If save best only
-# model.path='model.dat'
-# model.save_best_only=True
-# model.distributed_training(optimizer, strategy, 100, pool_network=False)
-
-# visualize
-# model.visualize_loss()
-# model.visualize_reward()
-# model.visualize_reward_loss()
-
-# animate agent
-# model.animate_agent(200)
-
-# save
-# model.save_param('param.dat')
-# model.save('model.dat')
+model.distributed_training(
+    optimizer=optimizer,
+    strategy=strategy,
+    episodes=100,
+    pool_network=False
+)
 ```
+
 ```python
-# Use PPO
-import tensorflow as tf
-from Note_rl.policy import SoftmaxPolicy
+# PPO with MirroredStrategy
 from Note_rl.examples.keras.PPO import PPO
 
-strategy = tf.distribute.MirroredStrategy()
-BATCH_SIZE_PER_REPLICA = 64
-GLOBAL_BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
-
 with strategy.scope():
-  model=PPO(4,128,2,0.7,0.7)
-  optimizer = [tf.keras.optimizers.Adam(1e-4),tf.keras.optimizers.Adam(5e-3)]
+    model = PPO(state_dim=4, hidden_size=128, action_dim=2, clip=0.7, entropy_coef=0.7)
+    optimizer = [
+        tf.keras.optimizers.Adam(1e-4),
+        tf.keras.optimizers.Adam(5e-3)
+    ]
 
-model.set(policy=SoftmaxPolicy(),pool_size=10000,batch=GLOBAL_BATCH_SIZE,update_steps=1000,PPO=True)
-model.distributed_training(optimizer, strategy, 100, pool_network=False)
+model.set(
+    policy=SoftmaxPolicy(),
+    pool_size=10000,
+    batch=global_batch,
+    update_steps=1000,
+    PPO=True
+)
+
+model.distributed_training(
+    optimizer=optimizer,
+    strategy=strategy,
+    episodes=100,
+    pool_network=False
+)
 ```
+
 ```python
-# Use HER.
-import tensorflow as tf
-from Note_rl.noise import GaussianWhiteNoiseProcess
-from Note_rl.examples.keras.DDPG_HER import DDPG
-
-strategy = tf.distribute.MirroredStrategy()
-BATCH_SIZE_PER_REPLICA = 256
-GLOBAL_BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
-
-with strategy.scope():
-  model=DDPG(128,0.1,0.98,0.005)
-  optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
-
-model.set(noise=GaussianWhiteNoiseProcess(),pool_size=10000,batch=GLOBAL_BATCH_SIZE,criterion=-5,trial_count=10,HER=True)
-model.distributed_training(optimizer, strategy, 2000, pool_network=False)
-```
-```python
-# Use Multi-agent reinforcement learning.
-import tensorflow as tf
-from Note_rl.policy import SoftmaxPolicy
-from Note_rl.examples.keras.MADDPG import DDPG
-
-strategy = tf.distribute.MirroredStrategy()
-BATCH_SIZE_PER_REPLICA = 32
-GLOBAL_BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
-
-with strategy.scope():
-  model=DDPG(128,0.1,0.98,0.005)
-  optimizer = [tf.keras.optimizers.Adam(),tf.keras.optimizers.Adam()]
-
-model.set(policy=SoftmaxPolicy(),pool_size=3000,batch=GLOBAL_BATCH_SIZE,trial_count=10,MARL=True)
-model.distributed_training(optimizer, strategy, 100, pool_network=False)
-```
-```python
-# This technology uses Python’s multiprocessing module to speed up trajectory collection and storage, I call it Pool Network.
-import tensorflow as tf
-from Note_rl.policy import EpsGreedyQPolicy
+# Pool Network + MirroredStrategy
 from Note_rl.examples.keras.pool_network.DQN import DQN
 
-strategy = tf.distribute.MirroredStrategy()
-BATCH_SIZE_PER_REPLICA = 64
-GLOBAL_BATCH_SIZE = BATCH_SIZE_PER_REPLICA * strategy.num_replicas_in_sync
-
 with strategy.scope():
-  model=DQN(4,128,2,7)
-  optimizer = tf.keras.optimizers.Adam()
-model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=GLOBAL_BATCH_SIZE,update_batches=17)
-model.distributed_training(optimizer, strategy, 100, pool_network=True, processes=7)
+    model = DQN(state_dim=4, hidden_size=128, action_dim=2, processes=7)
+    optimizer = tf.keras.optimizers.Adam()
+
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.01),
+    pool_size=10000,
+    batch=global_batch,
+    update_batches=17
+)
+
+model.distributed_training(
+    optimizer=optimizer,
+    strategy=strategy,
+    episodes=100,
+    pool_network=True,
+    processes=7
+)
 ```
-**MultiWorkerMirroredStrategy:**
+
+## MultiWorkerMirroredStrategy (Multi-machine)
+
 ```python
 import tensorflow as tf
-from Note_rl.policy import EpsGreedyQPolicy
-from Note_rl.examples.keras.pool_network.DQN import DQN
-import sys
 import os
+import sys
 
+# Disable GPU on workers if needed
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ.pop('TF_CONFIG', None)
 if '.' not in sys.path:
-  sys.path.insert(0, '.')
+    sys.path.insert(0, '.')
 
 tf_config = {
     'cluster': {
@@ -349,472 +679,48 @@ tf_config = {
     },
     'task': {'type': 'worker', 'index': 0}
 }
+os.environ['TF_CONFIG'] = json.dumps(tf_config)
 
 strategy = tf.distribute.MultiWorkerMirroredStrategy()
-per_worker_batch_size = 64
+per_worker_batch = 64
 num_workers = len(tf_config['cluster']['worker'])
-global_batch_size = per_worker_batch_size * num_workers
+global_batch = per_worker_batch * num_workers
 
 with strategy.scope():
-  multi_worker_model = DQN(4,128,2)
-  optimizer = tf.keras.optimizers.Adam()
+    model = DQN(state_dim=4, hidden_size=128, action_dim=2)
+    optimizer = tf.keras.optimizers.Adam()
 
-multi_worker_model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=global_batch_size,update_batches=17)
-multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
-                    pool_network=True, processes=7)
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.01),
+    pool_size=10000,
+    batch=global_batch,
+    update_batches=17
+)
 
-# If set criterion.
-# model.set(policy=EpsGreedyQPolicy(0.01),pool_size=10000,batch=global_batch_size,update_steps=10,trial_count=10,criterion=200)
-# multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
-#                    pool_network=True, processes=7)
-
-# If save the model at intervals of 10 episode, with a maximum of 2 saved file, and the file name is model.dat.
-# model.path='model.dat'
-# model.save_freq=10
-# model. max_save_files=2
-# multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
-#                    pool_network=True, processes=7)
-
-# If save parameters only
-# model.path='param.dat'
-# model.save_freq=10
-# model. max_save_files=2
-# model.save_param_only=True
-# multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
-#                    pool_network=True, processes=7)
-
-# If save best only
-# model.path='model.dat'
-# model.save_best_only=True
-# multi_worker_model.distributed_training(optimizer, strategy, num_episodes=100,
-#                    pool_network=True, processes=7)
-
-# visualize
-# model.visualize_loss()
-# model.visualize_reward()
-# model.visualize_reward_loss()
-
-# animate agent
-# model.animate_agent(200)
-
-# save
-# model.save_param('param.dat')
-# model.save('model.dat')
+model.distributed_training(
+    optimizer=optimizer,
+    strategy=strategy,
+    num_episodes=100,           # use num_episodes for multi-worker
+    pool_network=True,
+    processes=7
+)
 ```
 
-# Save model parameters:
+**Visualization & Saving** (common to all examples):
+
 ```python
-import pickle
-output_file=open('param.dat','wb')
-pickle.dump(model.param,output_file)
-output_file.close()
-```
-or
-```python
-model = MyModel(...)
+# Plot results
+model.visualize_loss()
+model.visualize_reward()
+model.visualize_reward_loss()
+
+# Animate trained agent
+model.animate_agent(max_steps=200)
+
+# Manual save
 model.save_param('param.dat')
-```
-
-# Restore model parameters:
-```python
-import pickle
-input_file=open('param.dat','rb')
-param=pickle.load(input_file)
-input_file.close()
-```
-or
-```python
-model = MyModel(...)
-model.restore_param('param.dat')
-```
-or
-```python
-from Note import nn
-param=nn.restore_param('param.dat')
-```
-
-# Save model:
-```python
-model = MyModel(...)
 model.save('model.dat')
 ```
-
-# Restore model:
-```python
-# distributed training
-with strategy.scope():
-    model = MyModel(...)
-    model.restore('model.dat')
-```
-or
-```python
-model = MyModel(...)
-model.restore('model.dat')
-```
-
-# RL.train:
-
-**Description**:
-Runs the main training loop for the `RL` agent. Supports single-process and multi-process experience collection via a **pool network**, distributed training strategies (Mirrored/MultiWorker/ParameterServer), just-in-time compilation for training steps, callbacks, and special replay mechanisms: Hindsight Experience Replay (HER), Prioritized Replay (PR) and PPO-compatible behavior. The method coordinates environment rollout(s), buffer aggregation, batch sampling, training updates, optional periodic trimming of replay buffers (via `window_size_fn` / `window_size_ppo`), logging and model saving.
-
-**Arguments**:
-
-* **`train_loss`** (`tf.keras.metrics.Metric`): Metric used to accumulate/report training loss (e.g. `tf.keras.metrics.Mean()`).
-* **`optimizer`** (`tf.keras.optimizers.Optimizer` or list): Optimizer (or list of optimizers) used to apply gradients. If `self.optimizer` is already set, the passed `optimizer` is only used to initialize `self.optimizer` (see code behaviour).
-* **`episodes`** (`int`, optional): Number of episodes to run. If `None`, training runs indefinitely (or until `self.stop_training` or reward criterion is met).
-* **`jit_compile`** (`bool`, optional, default=`True`): Whether to use `@tf.function(jit_compile=True)` compiled train steps. When True the compiled train-steps are used where available.
-* **`pool_network`** (`bool`, optional, default=`True`): Enable pool-network multi-process rollouts. When True, experiences are collected in parallel by `processes` worker processes and aggregated into shared (manager) buffers.
-* **`processes`** (`int`, optional): Number of parallel worker processes used when `pool_network=True` to collect experience.
-* **`processes_her`** (`int`, optional): When HER is enabled, number of processes used for HER batch generation. Affects internal multiprocessing logic and intermediate buffers.
-* **`processes_pr`** (`int`, optional): When PR is enabled, number of processes used for prioritized replay sampling. Affects internal multiprocessing logic and intermediate buffers.
-* **`window_size`** (`int`, optional): Fixed window size used when trimming per-process buffers inside `pool` / `store_in_parallel`. (If `None` uses default popping behavior.)
-* **`clearing_freq`** (`int`, optional): When set, triggers periodic trimming of per-process buffers every `clearing_freq` stored items.
-* **`window_size_`** (`int`, optional): A global fallback window size used in several trimming spots when buffers exceed `self.pool_size`.
-* **`window_size_ppo`** (`int`, optional): Default PPO-specific window trimming size used if `window_size_fn` is not supplied (used when `PPO == True` and `PR == True`).
-* **`random`** (`bool`, optional, default=`False`): When `pool_network=True`, toggles random worker selection vs. inverse-length selection logic used in `store_in_parallel`.
-* **`save_data`** (`bool`, optional, default=`True`): If True, keeps collected pool lists in shared manager lists to allow saving/resuming; otherwise per-process buffers are reinitialized each run.
-* **`p`** (`int`, optional): Controls the logging/printing frequency. If `p` is `None` a default of 9 is used (internally the implementation derives a logging interval). If `p == 0` the periodic logging block is disabled (the code contains `if p!=0` guards around prints).
-  *Implementation note:* The code transforms the user-supplied `p` into an internal `self.p` and a derived integer `p` that is used for printing interval computation (`p` becomes roughly the number of episodes between logs).
-
-**Returns**:
-
-* If running with `distributed_flag==True`: returns `(total_loss / num_batches).numpy()` (the average distributed loss for the epoch/batch group).
-* Otherwise: returns `train_loss.result().numpy()` (the metric's current value).
-* If early exit happens (e.g. `self.stop_training==True`), the function returns early (commonly the current `train_loss` value or `np.array(0.)` depending on branch).
-
-**Details**:
-
-1. **Initialization & manager setup**:
-
-   * If `pool_network=True`, a `multiprocessing.Manager()` is created and many local lists/buffers (`state_pool_list`, `action_pool_list`, `reward_pool_list`, etc.) are converted into manager lists/dicts so worker processes can append data safely.
-   * Per-process data structures (e.g. `self.ratio_list`, `self.TD_list`) are initialized if `PR==True`. When `PPO==True` and `PR==True` the code uses per-process `ratio_list` / `TD_list` and later concatenates them into `self.prioritized_replay` before training.
-
-2. **Callbacks & training lifecycle**:
-
-   * Calls `on_train_begin` on registered callbacks at the start.
-   * Per-episode: calls `on_episode_begin` and `on_episode_end` callbacks with logs including `'loss'` and `'reward'`.
-   * Per-batch: calls `on_batch_begin` / `on_batch_end` with batch logs (loss). This applies to both the PR/HER per-batch generation branches and the dataset-driven branches.
-   * Respects `self.stop_training` — if set True during training the method exits early and returns.
-
-3. **Experience collection**:
-
-   * When `pool_network=True` the function spawns `processes` worker processes (each runs `store_in_parallel`) to produce per-process pool lists, then `concatenate`s them (or packs them into `self.state_pool[7]` etc. when `processes_pr`/`processes_her` are used).
-   * If `processes_pr`/`processes_her` are set, special per-process lists (`self.state_list`, `self.action_list`, ...) are used for parallel sampling and later aggregated in `data_func()`.
-
-4. **Training procedure & batching**:
-
-   * Two main modes:
-
-     * **PR/HER path**: When `self.PR` or `self.HER` is `True`, batches are generated via `self.data_func()` (which may itself spawn worker processes to form batches). The loop iterates over `batches` computed from the pool length / `self.batch`. Each generated batch is turned into a small `tf.data.Dataset` (batched to `self.global_batch_size`) and then:
-
-       * If using a MirroredStrategy, the dataset is distributed and `distributed_train_step` or `_` is used.
-       * Else the code uses `train_step` / `train_step_` or directly the non-distributed loops.
-     * **Plain dataset path**: When not PR/HER, the code creates a `tf.data.Dataset` from the entire pool (`self.state_pool,...`) and iterates it as usual (shuffle when not `pool_network`), applying `train_step`/`train_step_` for each mini-batch.
-   * `self.batch_counter` and `self.step_counter` are used to decide when to call `self.update_param()` and (if PPO + PR) when to apply `window_size_fn` / `window_size_ppo` trimming to per-process buffers.
-
-5. **Distributed strategies**:
-
-   * Code supports `tf.distribute.MirroredStrategy`, `MultiWorkerMirroredStrategy` and `ParameterServerStrategy` integration:
-
-     * When MirroredStrategy is detected, datasets are distributed via `strategy.experimental_distribute_dataset` and `distributed_train_step` is used.
-     * For `MultiWorkerMirroredStrategy` a custom path calls `self.CTL` (user-defined) to compute loss over multiple workers.
-     * If a ParameterServerStrategy is used and `stop_training` triggers, the code may call `self.coordinator.join()` to sync workers and exit.
-
-6. **Priority replay (PR) & PPO interactions**:
-
-   * If `PR==True` and `PPO==True`, the training loop:
-
-     * Maintains per-process `ratio_list` / `TD_list` during collection.
-     * Concatenates them into `self.prioritized_replay.ratio` and `self.prioritized_replay.TD` before sampling/training.
-     * When `self.batch_counter % self.update_batches == 0` or `self.update_steps` triggers an update, the code attempts to call `self.window_size_fn(p)` (if provided) for each process and trims per-process buffers to the returned `window_size` (or uses `window_size_ppo` fallback). This enables adaptive trimming (e.g. driven by ESS).
-   * If `PR==True` but `PPO==False`, only `TD_list` is used/concatenated.
-
-7. **Saving & early stopping**:
-
-   * Periodic saving: if `self.path` is set and `i % self.save_freq == 0`, calls `save_param_` or `save_` depending on `self.save_param_only`. `max_save_files` and `save_best_only` can be used in your saving implementations (not implemented here).
-   * Reward-based termination: if `self.trial_count` and `self.criterion` are set, the method computes `avg_reward` over the most recent `trial_count` episodes and will terminate early when `avg_reward >= criterion`. It prints summary info (episode count, average reward, elapsed time) and returns.
-
-8. **Logging behavior**:
-
-   * The printed logs (loss/reward) are gated by the derived `p` logic. Passing `p==0` suppresses periodic printouts (there are many `if p!=0` guards around prints).
-   * The method always updates `self.loss_list`, `self.total_episode`, and `self.time` counters.
-
-9. **Return values & possible early-exit values**:
-
-   * On normal epoch/episode completion the method returns the computed train loss (distributed average or `train_loss.result().numpy()`).
-   * On early exit (stop\_training true or ParameterServer coordinator join) the method may return `np.array(0.)` or the current metric depending on branch.
-
-**Notes / Implementation caveats**:
-
-* The `p` parameter behavior is non-standard: if you want the default printing cadence, pass `p=None` (internally becomes 9). Pass `p=0` to disable periodic printing.
-* When `PR==True` and `PPO==True` the code expects per-process `ratio_list`/`TD_list` and relies on concatenation. Make sure those variables are initialized and that `self.window_size_fn` (if used) handles small buffer sizes (the user-provided `window_size_fn` should guard `len(weights) < 2`).
-* Be defensive around buffer sizes: many places assume `len(self.state_pool) >= self.batch`. During warm-up training you may see early returns if the pool is not yet filled.
-* The method mutates internal buffers when trimming; ensure that any external references to those buffers are updated if needed (they are manager lists/dicts in `pool_network` mode).
-* Callbacks are integrated; use them for logging, checkpointing, early stopping, or custom monitoring.
-
-# RL.distributed\_training
-
-**Description**
-Runs a distributed / multi-device training loop for the `RL` agent using TensorFlow `tf.distribute` strategies. It combines multi-process environment rollouts (pool network) with distributed model updates (MirroredStrategy / MultiWorkerMirroredStrategy) and supports special replay modes (Prioritized Replay `PR`, Hindsight ER `HER`) and PPO interactions. The method orchestrates rollout collection across OS processes, constructs aggregated replay buffers, builds distributed datasets, runs distributed train steps, calls callbacks, does periodic trimming (via `window_size_fn` / `window_size_ppo`), saving, and early stopping.
-
----
-
-## Arguments
-
-* **`optimizer`** (`tf.keras.optimizers.Optimizer` or list): Optimizer(s) to apply gradients. If `self.optimizer` is `None` this will initialize `self.optimizer`.
-* **`strategy`** (`tf.distribute.Strategy`): A TensorFlow distribution strategy instance (e.g. `tf.distribute.MirroredStrategy`, `tf.distribute.MultiWorkerMirroredStrategy`) under whose scope distributed training is executed.
-* **`episodes`** (`int`, optional): Number of episodes to run (MirroredStrategy path). If `None` and `num_episodes` supplied, `num_episodes` may be used by some branches.
-* **`num_episodes`** (`int`, optional): Alternative name for `episodes` used by some strategy branches (e.g. MultiWorker path). If provided, it overrides/assigns `episodes`.
-* **`jit_compile`** (`bool`, optional, default=`True`): Whether to use JIT compiled train steps where available (`@tf.function(jit_compile=True)`).
-* **`pool_network`** (`bool`, optional, default=`True`): Enable multi-process environment rollouts (pool of worker processes).
-* **`processes`** (`int`, optional): Number of parallel worker processes to launch for rollouts when `pool_network=True`.
-* **`processes_her`** (`int`, optional): Number of worker processes dedicated for HER sampling (if `HER=True`).
-* **`processes_pr`** (`int`, optional): Number of worker processes dedicated for PR sampling (if `PR=True`).
-* **`window_size`** (`int`, optional): Fixed per-process trimming window used in collection logic.
-* **`clearing_freq`** (`int`, optional): Periodic trimming frequency (applies to per-process buffers).
-* **`window_size_`** (`int`, optional): Global fallback window used in some trimming branches.
-* **`window_size_ppo`** (`int`, optional): Default PPO window trimming fallback used if `window_size_fn` is not present (used with `PPO==True and PR==True`).
-* **`random`** (`bool`, optional, default=`False`): Controls per-process selection strategy in `store_in_parallel` (random vs. inverse-length selection).
-* **`save_data`** (`bool`, optional, default=`True`): Whether to persist per-process buffers to a `multiprocessing.Manager()` so they survive across processes and can be saved.
-* **`p`** (`int`, optional): Controls printing/logging frequency. If `None` an internal default is used (≈9). Passing `p==0` disables periodic printing. Internally the method transforms `p` to an interval used for logging.
-
----
-
-## Returns
-
-* For MirroredStrategy / distributed branches: returns `(total_loss / num_batches).numpy()` when `distributed_flag==True` and that branch computes `total_loss / num_batches`.
-* Otherwise returns `train_loss.result().numpy()` (current metric value).
-* The function may return early (e.g. `self.stop_training==True` or when reward `criterion` is met). In early-exit cases the return value depends on the branch (commonly the current metric or `np.array(0.)`).
-
----
-
-## Behaviour / Details
-
-1. **Distributed setup**
-
-   * The function sets `self.distributed_flag = True` and defines a `compute_loss` closure inside `strategy.scope()` that calls `tf.nn.compute_average_loss` with `global_batch_size=self.batch`. This is used by the distributed train step to scale per-example losses.
-   * It supports at least two strategy types explicitly:
-
-     * `tf.distribute.MirroredStrategy` — typical synchronous multi-GPU single-machine use; the function builds distributed datasets and uses `distributed_train_step`.
-     * `tf.distribute.MultiWorkerMirroredStrategy` — multi-worker synchronous training. The code follows a slightly different loop (uses `self.CTL` for loss aggregation in some branches).
-
-2. **Pool-network (multi-process rollouts)**
-
-   * If `pool_network=True` the method creates a `multiprocessing.Manager()` and converts `self.env` and many per-process lists into manager lists/dicts so worker processes can fill them concurrently.
-   * For `PR==True` and `PPO==True` it initializes per-process `ratio_list` and `TD_list` (as `tf.Variable` wrappers) and later concatenates them into `self.prioritized_replay.ratio` / `.TD` before training.
-   * Worker processes are launched using `mp.Process(target=self.store_in_parallel, args=(p, lock_list))` to collect rollouts. **Note:** the code references `lock_list` when launching workers in some branches but `lock_list` is not created in every branch of this function (this is an implementation caveat — see *Caveats*).
-
-3. **Data aggregation & sampling**
-
-   * When `processes_her` / `processes_pr` are provided, the code collects per-process mini-batches (`self.state_list`, `self.action_list`, etc.) and `data_func()` uses those to form training batches.
-   * When not using PR/HER, per-process pools are concatenated `np.concatenate(self.state_pool_list)` etc. to form the full `self.state_pool` which is turned into a `tf.data.Dataset`.
-
-4. **Training step selection**
-
-   * For Mirrored strategy: dataset is wrapped with `strategy.experimental_distribute_dataset()` and the loop calls `distributed_train_step` (JIT or non-JIT variant depending on `jit_compile`).
-   * For MultiWorker strategy: the code takes a different path and (in places) calls `self.CTL(multi_worker_dataset)` — a custom user-defined procedure expected to exist on the RL instance.
-   * For non-distributed branches fallback to `train1` / `train2` logic is reused.
-
-5. **PR / PPO interactions**
-
-   * If `PR` is enabled, per-process TD / ratio lists are concatenated into the prioritized replay object before sampling/training.
-   * If `PPO` + `PR` the method uses `window_size_fn` (if present) to compute adaptive trimming for each process and trims `state_pool_list[p]` etc. accordingly after update steps; otherwise it falls back to `window_size_ppo`.
-
-6. **Callbacks, saving, and early stopping**
-
-   * Calls callbacks: `on_train_begin`, `on_episode_begin`, `on_batch_begin`, `on_batch_end`, `on_episode_end`, `on_train_end` at appropriate points.
-   * Saves model / params periodically when `self.path` is set according to `self.save_freq`.
-   * If `self.trial_count` and `self.criterion` are set, computes a rolling average reward over recent episodes and stops training early if criterion is reached.
-
----
-
-## Complexity & performance notes
-
-* Launching many OS processes for rollouts can be CPU- and memory- intensive. Use a sensible `processes` count per machine.
-* MirroredStrategy moves gradient application to devices — ensure your batch sizing and `global_batch_size` match your device count to avoid under/over-scaling.
-* `PR` requires additional memory for the `ratio`/`TD` arrays; be mindful when concatenating per-process lists.
-
----
-
-## Caveats / Implementation notes (important)
-
-* **`lock_list` usage:** the function passes `lock_list` into `store_in_parallel` in several places but `lock_list` is not defined inside `distributed_training` before use. If you rely on locks to guard manager lists, make sure to construct `lock_list = [mp.Lock() for _ in range(processes)]` (as is done in the non-distributed `train` function) and pass it into the worker processes.
-* **Small buffer sizes:** many trimming and `window_size_fn` usages assume `len(weights) >= 2`. Guard `window_size_fn` and trimming calls against tiny buffers during warm-up.
-* **`self.CTL` and other user hooks:** The code calls `self.CTL(...)` in MultiWorker branches — ensure you implement this helper to compute the loss when using MultiWorker strategy.
-* **Return values vary by branch:** different strategy branches return different items (distributed average loss or metric result). Tests should validate the return path you use.
-
-# RL.adjust_batch_size:
-
-**Description**:
-This method dynamically adjusts the batch size for training based on the Effective Sample Size (ESS) of the prioritized replay buffer, which measures the diversity of sampled experiences. It uses an Exponential Moving Average (EMA) of ESS to ensure smooth adjustments. Optionally, it also adapts related hyperparameters like the priority exponent alpha, learning rate, exploration epsilon, update frequency, soft update tau, discount factor gamma, store count, weight decay, beta1, beta2, and PPO clip range, using ESS feedback to balance exploration, stability, and efficiency in reinforcement learning algorithms such as DQN or PPO.
-
-**Arguments**:
-
-- **`smooth`** (`float`, default=`0.2`): The smoothing coefficient for the EMA of ESS, controlling adaptation speed to new ESS values.
-  
-- **`batch_params`** (`dict`, optional): Dictionary for batch adjustment. Keys: `'scale'` (scaling factor, default 1.0), `'min'` (min batch, optional), `'max'` (max batch, optional), `'align'` (alignment granularity, optional).
-  
-- **`target_ess`** (`float`, optional): The target ESS value for adaptive computation. If provided, batch size scales with the ratio of EMA ESS to target ESS.
-  
-- **`alpha_params`** (`dict`, optional): Dictionary for adjusting PER priority exponent alpha. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-  
-- **`lr_params`** (`dict`, optional): Dictionary for adjusting learning rates. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-  
-- **`eps_params`** (`dict`, optional): Dictionary for adjusting exploration epsilon. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-  
-- **`freq_params`** (`dict`, optional): Dictionary for adjusting update frequency. Keys: `'scale'` (scale), `'min'`/`'max'` (bounds).
-  
-- **`tau_params`** (`dict`, optional): Dictionary for adjusting soft update tau. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-  
-- **`gamma_params`** (`dict`, optional): Dictionary for adjusting discount factor gamma. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-  
-- **`store_params`** (`dict`, optional): Dictionary for adjusting store count. Keys: `'scale'` (scale), `'min'`/`'max'` (bounds).
-  
-- **`weight_decay_params`** (`dict`, optional): Dictionary for adjusting weight decay. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-  
-- **`beta1_params`** (`dict`, optional): Dictionary for adjusting Adam beta1. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-  
-- **`beta2_params`** (`dict`, optional): Dictionary for adjusting Adam beta2. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-  
-- **`clip_params`** (`dict`, optional): Dictionary for adjusting PPO clip range. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (smoothing, default 0.2).
-
-**Returns**:
-- No return value. Updates `self.batch` and optional hyperparameters in-place.
-
-**Details**:
-1. **ESS Computation and Smoothing**:
-   - Computes weights from TD errors (or PPO ratios) raised to alpha.
-   - Calculates ESS as `1 / sum(p^2)` where `p = weights / sum(weights)`.
-   - Applies EMA smoothing to ESS for stability.
-
-2. **Batch Size Adjustment**:
-   - If `target_ess` provided, new batch = `current * (ema / target_ess) * scale`.
-   - Clips to min/max and aligns to multiples of `align`.
-
-3. **Hyperparameter Adaptations**:
-   - Calls dedicated methods for alpha, LR, epsilon, etc., using ESS ratio as feedback (high ESS → aggressive adjustments like larger LR/clip).
-   - Supports multi-optimizer/policy lists; updates in-place (e.g., `self.clip = ...`).
-
-4. **Integration Notes**:
-   - Assumes `self.prioritized_replay` for PER/PPO and `self.batch` for current value.
-   - Call periodically (e.g., every 10-50 steps) in training loop.
-
-# RL.adabatch:
-
-**Description**:
-This method dynamically adjusts the batch size based on estimated gradient noise to maintain a target noise level for balanced optimization. It computes gradient variance via repeated backpropagations on a fixed batch, applies EMA smoothing, and scales batch inversely with noise (high noise → larger batch). Optionally adapts hyperparameters like alpha, LR, epsilon, update frequency, tau, gamma, weight decay, beta1, beta2, and PPO clip using noise feedback, suitable for noisy RL environments.
-
-**Arguments**:
-
-- **`num_samples`** (`int`, required): Number of repeated gradient computations for variance estimation.
-  
-- **`target_noise`** (`float`, default=`1e-3`): Target gradient noise level; adjusts batch to achieve this.
-  
-- **`smooth`** (`float`, default=`0.2`): EMA smoothing for noise estimate.
-  
-- **`batch_params`** (`dict`, optional): For batch adjustment. Keys: `'scale'` (default 1.0), `'min'`/`'max'` (bounds), `'align'` (granularity).
-  
-- **`alpha_params`** (`dict`, optional): For PER alpha. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
-  
-- **`lr_params`** (`dict`, optional): For LR. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
-  
-- **`eps_params`** (`dict`, optional): For epsilon. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
-  
-- **`freq_params`** (`dict`, optional): For update frequency. Keys: `'scale'` (scale), `'min'`/`'max'` (bounds).
-  
-- **`tau_params`** (`dict`, optional): For tau. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
-  
-- **`gamma_params`** (`dict`, optional): For gamma. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
-  
-- **`weight_decay_params`** (`dict`, optional): For weight decay. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
-  
-- **`beta1_params`** (`dict`, optional): For beta1. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
-  
-- **`beta2_params`** (`dict`, optional): For beta2. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
-  
-- **`clip_params`** (`dict`, optional): For PPO clip. Keys: `'rate'` (rate), `'min'`/`'max'` (bounds), `'smooth'` (default 0.2).
-  
-- **`jit_compile`** (`bool`, default=`True`): Enables JIT for gradient computation.
-
-**Returns**:
-- No return value. Updates `self.batch` and hyperparameters in-place.
-
-**Details**:
-1. **Noise Estimation**:
-   - Samples fixed batch, computes gradients `num_samples` times (JIT optional).
-   - Variance as noise proxy, EMA smoothed.
-
-2. **Batch Adjustment**:
-   - New batch = `current * (ema_noise / target_noise) * scale`, clipped/aligned.
-
-3. **Hyperparameter Adaptations**:
-   - Calls methods with GNS=True for conservative adjustments (high noise → smaller LR/clip, larger decay/beta).
-
-4. **Integration Notes**:
-   - Supports HER/PR buffers (index 7); call after buffer fill.
-
-# RL.adjust:
-
-**Description**:
-This wrapper method unifies ESS-based and GNS-based adjustments by dispatching to `adjust_batch_size` or `adabatch` based on input. If `target_noise` is provided, it uses GNS for noise-driven adaptations; otherwise, ESS for diversity-driven ones. It enables flexible hyperparameter tuning in RL training loops.
-
-**Arguments**:
-
-- **`target_ess`** (`float`, optional): Target ESS for diversity-based adjustments.
-  
-- **`target_noise`** (`float`, optional): Target noise for variance-based adjustments; triggers GNS mode.
-  
-- **`num_samples`** (`int`, optional): For GNS estimation (required if `target_noise` provided).
-  
-- **`smooth`** (`float`, default=`0.2`): EMA smoothing for ESS or noise.
-  
-- **`batch_params`** (`dict`, optional): For batch scaling/bounds/alignment.
-  
-- **`alpha_params`** (`dict`, optional): For PER alpha.
-  
-- **`lr_params`** (`dict`, optional): For learning rate.
-  
-- **`eps_params`** (`dict`, optional): For epsilon.
-  
-- **`freq_params`** (`dict`, optional): For update frequency.
-  
-- **`tau_params`** (`dict`, optional): For soft update tau.
-  
-- **`gamma_params`** (`dict`, optional): For discount gamma.
-  
-- **`store_params`** (`dict`, optional): For store count.
-  
-- **`weight_decay_params`** (`dict`, optional): For weight decay.
-  
-- **`beta1_params`** (`dict`, optional): For Adam beta1.
-  
-- **`beta2_params`** (`dict`, optional): For Adam beta2.
-  
-- **`clip_params`** (`dict`, optional): For PPO clip.
-  
-- **`jit_compile`** (`bool`, default=`True`): For GNS gradient computation.
-
-**Returns**:
-- No return value. Dispatches to underlying methods for in-place updates.
-
-**Details**:
-1. **Mode Selection**:
-   - If `target_noise` provided, calls `adabatch` for GNS-based adjustments.
-   - Else, calls `adjust_batch_size` for ESS-based.
-
-2. **Unified Feedback**:
-   - Passes params to sub-methods; GNS mode uses noise variance as proxy.
-
-3. **Hyperparameter Handling**:
-   - Supports multi-optimizer/policy; updates in-place.
-
-4. **Integration Notes**:
-   - Call in training loop (e.g., every 50 steps); assumes filled buffer.
-
-**Usage Example**:
-
-https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/keras/pool_network/PPO_pr.py
-https://github.com/NoteDance/Note_rl/blob/main/Note_rl/examples/pytorch/pool_network/PPO_pr.py
 
 # LRFinder:
 **Usage:**
