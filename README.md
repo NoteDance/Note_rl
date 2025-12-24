@@ -722,6 +722,186 @@ model.save_param('param.dat')
 model.save('model.dat')
 ```
 
+# Building a Custom Agent by Extending the RL Base Class
+
+This example shows how to create a fully functional reinforcement learning agent by inheriting from the provided `RL` base class. The design leverages two key components from the `Note` framework:
+
+- `nn.Model`: A lightweight neural network base class that simplifies layer definition and parameter management.
+- `nn.RL`: The powerful reinforcement learning base class that handles replay buffers, parallel environments (Pool Network), prioritized replay, training loops, saving/loading, visualization, and more.
+
+By combining these, you can build complex agents (DQN, DDPG, PPO, etc.) with minimal boilerplate code.
+
+## Step 1: Define the Neural Network (Q-Network)
+
+## Step 2: Create the DQN Agent by Inheriting from `RL`
+
+```python
+import gym
+import tensorflow as tf
+
+class DQN(nn.RL):
+    def __init__(self, state_dim, hidden_dim, action_dim):
+        super().__init__()
+        
+        # Main and target Q-networks
+        self.q_net = Qnet(state_dim, hidden_dim, action_dim)
+        self.target_q_net = Qnet(state_dim, hidden_dim, action_dim)
+        
+        # Use main network parameters for optimization
+        self.param = self.q_net.param
+        
+        # Built-in environment (CartPole-v0)
+        self.env = gym.make('CartPole-v0').env  # .env removes time limit warning
+
+    # Forward pass: returns Q-values for given states
+    def action(self, s):
+        return self.q_net(s)
+
+    # Loss computation (called during training)
+    def __call__(self, s, a, next_s, r, d):
+        # Gather Q-values for taken actions
+        a = tf.expand_dims(a, axis=1)
+        current_q = tf.gather(self.q_net(s), a, axis=1, batch_dims=1)
+        
+        # Double DQN: use online net to select, target net to evaluate
+        next_q_online = self.q_net(next_s)
+        best_action = tf.argmax(next_q_online, axis=1, output_type=tf.int32)
+        best_action = tf.expand_dims(best_action, axis=1)
+        next_q_target = tf.gather(self.target_q_net(next_s), best_action, axis=1, batch_dims=1)
+        
+        # TD target
+        target = r + 0.99 * next_q_target * (1.0 - d)
+        
+        # Huber loss for stability (optional, or use MSE)
+        td_error = current_q - tf.stop_gradient(target)
+        loss = tf.reduce_mean(tf.square(td_error))
+        
+        return loss
+
+    # Soft target network update (polyak averaging) - optional but recommended
+    def update_param(self):
+        tau = 0.005  # Soft update rate
+        for target_param, param in zip(self.target_q_net.param, self.q_net.param):
+            target_param.assign(tau * param + (1.0 - tau) * target_param)
+```
+
+### Key Methods Explained
+
+- `action(self, s)`: Returns Q-values. Used by the base `RL` class during action selection (combined with policy/noise).
+- `__call__(self, s, a, next_s, r, d)`: Computes the training loss. Called automatically during gradient updates.
+- `update_param(self)`: Called periodically (via `update_steps` or `update_batches`) to synchronize the target network. Override for soft/hard updates.
+
+## Step 3: Train the Agent
+
+```python
+import tensorflow as tf
+from Note_rl.policy import EpsGreedyQPolicy
+
+# Instantiate and configure
+model = DQN(state_dim=4, hidden_dim=128, action_dim=2)
+
+model.set(
+    policy=EpsGreedyQPolicy(eps=0.05),   # Exploration policy
+    pool_size=100000,                       # Replay buffer size
+    batch=64,                               # Mini-batch size
+    update_steps=10                         # Update target every 10 steps
+)
+
+# Optimizer and loss tracker
+optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
+train_loss = tf.keras.metrics.Mean(name='train_loss')
+
+# Train
+model.train(
+    train_loss=train_loss,
+    optimizer=optimizer,
+    episodes=500,
+    pool_network=False  # Set True + processes=N for parallel environments
+)
+```
+
+### Optional Enhancements
+
+```python
+# Early stopping when average reward over last 50 episodes >= 195
+model.set(trial_count=50, criterion=195.0)
+
+# Periodic checkpointing (keep max 3 files)
+model.path = 'dqn_cartpole.dat'
+model.save_freq = 20
+model.max_save_files = 3
+```
+
+## Supporting Hindsight Experience Replay (HER)
+
+To use **HER**, define a custom reward function that evaluates achievement of arbitrary goals:
+
+```python
+class DDPG_HER(nn.RL):
+    def __init__(...):
+        ...
+        self.env = gym.make('FetchReach-v1')
+
+    def reward_done_func(self, achieved_goal, desired_goal):
+        distance = np.linalg.norm(achieved_goal - desired_goal, axis=-1)
+        done = distance < 0.05
+        reward = -1.0 if not done else 0.0
+        return reward, done
+```
+
+Then enable HER:
+
+```python
+model.set(HER=True, batch=256, pool_size=100000)
+```
+
+The base class automatically relabels failed trajectories with achieved states as substitute goals.
+
+## Supporting Multi-Agent RL (MARL)
+
+For multi-agent scenarios, define a per-agent reward/done function:
+
+```python
+class MADDPG(nn.RL):
+    def __init__(...):
+        ...
+        self.env = multi_agent_env  # Custom multi-agent env
+
+    def reward_done_func_ma(self, rewards, dones):
+        # rewards: list/array of rewards for each agent
+        # dones: list/array of done flags for each agent
+        return rewards, dones
+```
+
+Then enable MARL:
+
+```python
+model.set(MARL=True, batch=64)
+```
+
+The base class handles joint state/action processing and centralized training.
+
+## Visualization & Evaluation
+
+```python
+# Plot training curves
+model.visualize_reward()
+model.visualize_loss()
+model.visualize_reward_loss()
+
+# Animate the trained agent
+model.animate_agent(max_steps=500)
+
+# Manual save/load
+model.save('my_dqn.dat')
+model.save_param('my_dqn_params.dat')
+
+# Restore
+model.restore('my_dqn.dat')
+```
+
+This pattern — inheriting from `nn.RL`, defining `action`, `__call__`, and optionally `update_param` + custom reward functions — allows you to rapidly prototype state-of-the-art agents while leveraging the full power of the framework (parallel collection, prioritized replay, distributed training, adaptive hyperparameters, etc.).
+
 # LRFinder:
 **Usage:**
 
