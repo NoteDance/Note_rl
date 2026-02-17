@@ -2333,7 +2333,7 @@ class RL:
                     self.ess.value=self.compute_ess(None,None)
     
     
-    def train(self, train_loss, optimizer=None, episodes=None, pool_network=True, parallel_store_and_training=True, processes=None, num_store=1, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, window_size_ppo=None, window_size_pr=None, jit_compile=True, random=False, save_data=True, callbacks=None, p=None):
+    def train(self, train_loss, optimizer=None, episodes=None, pool_network=True, parallel_store_and_training=True, parallel_training_and_save=False, processes=None, num_store=1, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, window_size_ppo=None, window_size_pr=None, jit_compile=True, random=False, save_data=True, callbacks=None, p=None):
         avg_reward=None
         if p!=0:
             if p==None:
@@ -2356,6 +2356,7 @@ class RL:
         if pool_network:
             manager=mp.Manager()
         self.parallel_store_and_training=parallel_store_and_training
+        self.parallel_training_and_save=parallel_training_and_save
         if parallel_store_and_training:
             self.param=manager.list(self.param)
             self.share_state_pool=manager.dict()
@@ -2388,6 +2389,16 @@ class RL:
             self.num_store=mp.Value('i',self.num_store)
             self.ess_=manager.list([None for _ in range(processes)])
             self.end_flag_list=manager.list([False for _ in range(processes)])
+        if parallel_training_and_save:
+            self.save_flag=mp.Value('b',False)
+            self.param_=manager.list()
+            for i in range(len(self.param)):
+                if type(self.param[i])==list:
+                    self.param_.append([])
+                    for j in range(len(self.param[i])):
+                        self.param_[-1].append(None)
+                else:
+                    self.param_.append(None)
         self.processes=processes
         self.num_store=num_store
         self.processes_her=processes_her
@@ -2520,9 +2531,28 @@ class RL:
                 self.total_episode+=1
                 if self.path!=None and i%self.save_freq==0:
                     if self.save_param_only==False:
-                        self.save_param_(self.path)
+                        if parallel_training_and_save:
+                            if type(self.optimizer)==list:
+                                self.state_dict=manager.list()
+                                for i in range(len(self.optimizer)):
+                                    self.state_dict.append(dict())
+                                    self.optimizer[i].save_own_variables(self.state_dict[-1])
+                            else:
+                                self.state_dict=manager.dict()
+                                self.optimizer.save_own_variables(self.state_dict)
+                            self.param_=manager.list([None for _ in range(len(self.param))])
+                            for i in range(len(self.param)):
+                                if type(self.param[i])==list:
+                                    for j in range(len(self.param[i])):
+                                        self.param_[i][j]=tf.identity(self.param[i][j])
+                                else:
+                                    self.param_[i]=tf.identity(self.param[i])
+                            process=mp.Process(target=self.save_,args=(self.path))
+                            process.start()
+                        else:
+                            self.save_(self.path)
                     else:
-                        self.save_(self.path)
+                        self.save_param_(self.path)
                 if self.trial_count!=None:
                     if len(self.reward_list)>=self.trial_count:
                         avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -2592,9 +2622,28 @@ class RL:
                 self.total_episode+=1
                 if self.path!=None and i%self.save_freq==0:
                     if self.save_param_only==False:
-                        self.save_param_(self.path)
+                        if parallel_training_and_save:
+                            if type(self.optimizer)==list:
+                                self.state_dict=manager.list()
+                                for i in range(len(self.optimizer)):
+                                    self.state_dict.append(dict())
+                                    self.optimizer[i].save_own_variables(self.state_dict[-1])
+                            else:
+                                self.state_dict=manager.dict()
+                                self.optimizer.save_own_variables(self.state_dict)
+                            self.param_=manager.list([None for _ in range(len(self.param))])
+                            for i in range(len(self.param)):
+                                if type(self.param[i])==list:
+                                    for j in range(len(self.param[i])):
+                                        self.param_[i][j]=tf.identity(self.param[i][j])
+                                else:
+                                    self.param_[i]=tf.identity(self.param[i])
+                            process=mp.Process(target=self.save_,args=(self.path))
+                            process.start()
+                        else:
+                            self.save_(self.path)
                     else:
-                        self.save_(self.path)
+                        self.save_param_(self.path)
                 if self.trial_count!=None:
                     if len(self.reward_list)>=self.trial_count:
                         avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -2639,7 +2688,7 @@ class RL:
         return
     
     
-    def distributed_training(self, optimizer=None, strategy=None, episodes=None, num_episodes=None, pool_network=True, parallel_store_and_training=True, processes=None, num_store=1, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, window_size_ppo=None, window_size_pr=None, jit_compile=True, random=False, save_data=True, callbacks=None, p=None):
+    def distributed_training(self, optimizer=None, strategy=None, episodes=None, num_episodes=None, pool_network=True, parallel_store_and_training=True, parallel_training_and_save=False, processes=None, num_store=1, processes_her=None, processes_pr=None, window_size=None, clearing_freq=None, window_size_=None, window_size_ppo=None, window_size_pr=None, jit_compile=True, random=False, save_data=True, callbacks=None, p=None):
         avg_reward=None
         if num_episodes!=None:
             episodes=num_episodes
@@ -2665,6 +2714,7 @@ class RL:
         if pool_network:
             manager=mp.Manager()
         self.parallel_store_and_training=parallel_store_and_training
+        self.parallel_training_and_save=parallel_training_and_save
         if parallel_store_and_training:
             self.param=manager.list(self.param)
             self.share_state_pool=manager.dict()
@@ -2697,6 +2747,16 @@ class RL:
             self.num_store=mp.Value('i',self.num_store)
             self.ess_=manager.list([None for _ in range(processes)])
             self.end_flag_list=manager.list([False for _ in range(processes)])
+        if parallel_training_and_save:
+            self.save_flag=mp.Value('b',False)
+            self.param_=manager.list()
+            for i in range(len(self.param)):
+                if type(self.param[i])==list:
+                    self.param_.append([])
+                    for j in range(len(self.param[i])):
+                        self.param_[-1].append(None)
+                else:
+                    self.param_.append(None)
         self.processes=processes
         self.num_store=num_store
         self.processes_her=processes_her
@@ -2832,9 +2892,28 @@ class RL:
                     self.total_episode+=1
                     if self.path!=None and i%self.save_freq==0:
                         if self.save_param_only==False:
-                            self.save_param_(self.path)
+                            if parallel_training_and_save:
+                                if type(self.optimizer)==list:
+                                    self.state_dict=manager.list()
+                                    for i in range(len(self.optimizer)):
+                                        self.state_dict.append(dict())
+                                        self.optimizer[i].save_own_variables(self.state_dict[-1])
+                                else:
+                                    self.state_dict=manager.dict()
+                                    self.optimizer.save_own_variables(self.state_dict)
+                                self.param_=manager.list([None for _ in range(len(self.param))])
+                                for i in range(len(self.param)):
+                                    if type(self.param[i])==list:
+                                        for j in range(len(self.param[i])):
+                                            self.param_[i][j]=tf.identity(self.param[i][j])
+                                    else:
+                                        self.param_[i]=tf.identity(self.param[i])
+                                process=mp.Process(target=self.save_,args=(self.path))
+                                process.start()
+                            else:
+                                self.save_(self.path)
                         else:
-                            self.save_(self.path)
+                            self.save_param_(self.path)
                     if self.trial_count!=None:
                         if len(self.reward_list)>=self.trial_count:
                             avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -2903,9 +2982,28 @@ class RL:
                     self.total_episode+=1
                     if self.path!=None and i%self.save_freq==0:
                         if self.save_param_only==False:
-                            self.save_param_(self.path)
+                            if parallel_training_and_save:
+                                if type(self.optimizer)==list:
+                                    self.state_dict=manager.list()
+                                    for i in range(len(self.optimizer)):
+                                        self.state_dict.append(dict())
+                                        self.optimizer[i].save_own_variables(self.state_dict[-1])
+                                else:
+                                    self.state_dict=manager.dict()
+                                    self.optimizer.save_own_variables(self.state_dict)
+                                self.param_=manager.list([None for _ in range(len(self.param))])
+                                for i in range(len(self.param)):
+                                    if type(self.param[i])==list:
+                                        for j in range(len(self.param[i])):
+                                            self.param_[i][j]=tf.identity(self.param[i][j])
+                                    else:
+                                        self.param_[i]=tf.identity(self.param[i])
+                                process=mp.Process(target=self.save_,args=(self.path))
+                                process.start()
+                            else:
+                                self.save_(self.path)
                         else:
-                            self.save_(self.path)
+                            self.save_param_(self.path)
                     if self.trial_count!=None:
                         if len(self.reward_list)>=self.trial_count:
                             avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -2968,9 +3066,28 @@ class RL:
                         
                     if self.path!=None and episode%self.save_freq==0:
                         if self.save_param_only==False:
-                            self.save_param_(self.path)
+                            if parallel_training_and_save:
+                                if type(self.optimizer)==list:
+                                    self.state_dict=manager.list()
+                                    for i in range(len(self.optimizer)):
+                                        self.state_dict.append(dict())
+                                        self.optimizer[i].save_own_variables(self.state_dict[-1])
+                                else:
+                                    self.state_dict=manager.dict()
+                                    self.optimizer.save_own_variables(self.state_dict)
+                                self.param_=manager.list([None for _ in range(len(self.param))])
+                                for i in range(len(self.param)):
+                                    if type(self.param[i])==list:
+                                        for j in range(len(self.param[i])):
+                                            self.param_[i][j]=tf.identity(self.param[i][j])
+                                    else:
+                                        self.param_[i]=tf.identity(self.param[i])
+                                process=mp.Process(target=self.save_,args=(self.path))
+                                process.start()
+                            else:
+                                self.save_(self.path)
                         else:
-                            self.save_(self.path)
+                            self.save_param_(self.path)
                   
                     episode += 1
                     self.step_in_episode = 0
@@ -3044,9 +3161,28 @@ class RL:
                         
                     if self.path!=None and episode%self.save_freq==0:
                         if self.save_param_only==False:
-                            self.save_param_(self.path)
+                            if parallel_training_and_save:
+                                if type(self.optimizer)==list:
+                                    self.state_dict=manager.list()
+                                    for i in range(len(self.optimizer)):
+                                        self.state_dict.append(dict())
+                                        self.optimizer[i].save_own_variables(self.state_dict[-1])
+                                else:
+                                    self.state_dict=manager.dict()
+                                    self.optimizer.save_own_variables(self.state_dict)
+                                self.param_=manager.list([None for _ in range(len(self.param))])
+                                for i in range(len(self.param)):
+                                    if type(self.param[i])==list:
+                                        for j in range(len(self.param[i])):
+                                            self.param_[i][j]=tf.identity(self.param[i][j])
+                                    else:
+                                        self.param_[i]=tf.identity(self.param[i])
+                                process=mp.Process(target=self.save_,args=(self.path))
+                                process.start()
+                            else:
+                                self.save_(self.path)
                         else:
-                            self.save_(self.path)
+                            self.save_param_(self.path)
                   
                     episode += 1
                     self.step_in_episode = 0
@@ -3191,7 +3327,7 @@ class RL:
     def save_param_(self,path):
         if self.save_best_only==False:
             if self.max_save_files==None or self.max_save_files==1:
-                output_file=open(path,'wb')
+               path=path
             else:
                 if self.train_acc!=None and self.test_acc!=None:
                     path=path.replace(path[path.find('.'):],'-{0}-{1:.4f}-{2:.4f}.dat'.format(self.total_epoch,self.train_acc,self.test_acc))
@@ -3199,13 +3335,11 @@ class RL:
                     path=path.replace(path[path.find('.'):],'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.train_acc))
                 else:
                     path=path.replace(path[path.find('.'):],'-{0}.dat'.format(self.total_epoch))
-                output_file=open(path,'wb')
                 self.path_list.append(path)
                 if len(self.path_list)>self.max_save_files:
                     os.remove(self.path_list[0])
                     del self.path_list[0]
-            pickle.dump(self.param,output_file)
-            output_file.close()
+            self.save_param(path)
         else:
             if self.trial_count!=None:
                 if len(self.reward_list)>=self.trial_count:
@@ -3263,7 +3397,7 @@ class RL:
                 self.done_pool_list[i]=None
         if self.save_best_only==False:
             if self.max_save_files==None or self.max_save_files==1:
-                output_file=open(path,'wb')
+                path=path
             else:
                 if self.train_acc!=None and self.test_acc!=None:
                     path=path.replace(path[path.find('.'):],'-{0}-{1:.4f}-{2:.4f}.dat'.format(self.total_epoch,self.train_acc,self.test_acc))
@@ -3271,13 +3405,11 @@ class RL:
                     path=path.replace(path[path.find('.'):],'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.train_acc))
                 else:
                     path=path.replace(path[path.find('.'):],'-{0}.dat'.format(self.total_epoch))
-                output_file=open(path,'wb')
                 self.path_list.append(path)
                 if len(self.path_list)>self.max_save_files:
                     os.remove(self.path_list[0])
                     del self.path_list[0]
-            pickle.dump(self,output_file)
-            output_file.close()
+            self.save(path)
         else:
             if self.trial_count!=None:
                 if len(self.reward_list)>=self.trial_count:
@@ -3295,7 +3427,41 @@ class RL:
         return
     
     
+    def _save(self,path):
+        if self.save_best_only==False:
+            if self.max_save_files==None or self.max_save_files==1:
+                path=path
+            else:
+                if self.train_acc!=None and self.test_acc!=None:
+                    path=path.replace(path[path.find('.'):],'-{0}-{1:.4f}-{2:.4f}.dat'.format(self.total_epoch,self.train_acc,self.test_acc))
+                elif self.train_acc!=None:
+                    path=path.replace(path[path.find('.'):],'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.train_acc))
+                else:
+                    path=path.replace(path[path.find('.'):],'-{0}.dat'.format(self.total_epoch))
+                self.path_list.append(path)
+                if len(self.path_list)>self.max_save_files:
+                    os.remove(self.path_list[0])
+                    del self.path_list[0]
+            self.save_p(path)
+        return
+    
+    
+    def save_p(self,path):
+        output_file=open(path,'wb')
+        param=self.param
+        self.param=None
+        optimizer=self.optimizer
+        self.optimizer=None
+        pickle.dump(self,output_file)
+        self.param=param
+        self.optimizer=optimizer
+        output_file.close()
+        return
+    
+    
     def save(self,path):
+        if self.parallel_training_and_save:
+            self.test_flag.value=False
         if self.pool_network and not self.save_data:
             state_pool_list=[]
             action_pool_list=[]
@@ -3330,19 +3496,28 @@ class RL:
         output_file=open(path,'wb')
         param=self.param
         self.param=None
+        optimizer=self.optimizer
+        self.optimizer=None
         pickle.dump(self,output_file)
-        pickle.dump(param,output_file)
-        self.param=param
-        if type(self.optimizer)==list:
-            state_dict=[]
-            for i in range(len(self.optimizer)):
-                state_dict.append(dict())
-                self.optimizer[i].save_own_variables(state_dict[-1])
-            pickle.dump(state_dict,output_file)
+        if not self.parallel_training_and_save:
+            pickle.dump(param,output_file)
         else:
-            state_dict=dict()
-            self.optimizer.save_own_variables(state_dict)
-            pickle.dump(state_dict,output_file)
+            pickle.dump(self.param_,output_file)
+        self.param=param
+        self.optimizer=optimizer
+        if self.parallel_training_and_save:
+            pickle.dump(self.state_dict,output_file)
+        else:
+            if type(self.optimizer)==list:
+                state_dict=[]
+                for i in range(len(self.optimizer)):
+                    state_dict.append(dict())
+                    self.optimizer[i].save_own_variables(state_dict[-1])
+                pickle.dump(state_dict,output_file)
+            else:
+                state_dict=dict()
+                self.optimizer.save_own_variables(state_dict)
+                pickle.dump(state_dict,output_file)
         output_file.close()
         if self.pool_network and not self.save_data:
             for i in range(self.processes):
@@ -3351,6 +3526,8 @@ class RL:
                 self.next_state_pool_list[i]=next_state_pool_list[i]
                 self.reward_pool_list[i]=reward_pool_list[i]
                 self.done_pool_list[i]=done_pool_list[i]
+        if self.parallel_training_and_save:
+            self.test_flag.value=True
         return
     
     
@@ -3374,4 +3551,29 @@ class RL:
             self.optimizer.build(self.optimizer._trainable_variables)
             self.optimizer.load_own_variables(state_dict)
         input_file.close()
+        return
+    
+    
+    def restore_p(self,path1,path2):
+        input_file1=open(path1,'rb')
+        input_file2=open(path2,'rb')
+        model=pickle.load(input_file1)
+        param=self.param
+        self.__dict__.update(model.__dict__)
+        self.param=param
+        param=pickle.load(input_file2)
+        assign_param(self.param,param)
+        if type(self.optimizer)==list:
+            state_dict=pickle.load(input_file2)
+            for i in range(len(self.optimizer)):
+                self.optimizer[i].built=False
+                self.optimizer[i].build(self.optimizer[i]._trainable_variables)
+                self.optimizer[i].load_own_variables(state_dict[i])
+        else:
+            state_dict=pickle.load(input_file2)
+            self.optimizer.built=False
+            self.optimizer.build(self.optimizer._trainable_variables)
+            self.optimizer.load_own_variables(state_dict)
+        input_file1.close()
+        input_file2.close()
         return
