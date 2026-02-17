@@ -2547,12 +2547,17 @@ class RL:
                                         self.param_[i][j]=tf.identity(self.param[i][j])
                                 else:
                                     self.param_[i]=tf.identity(self.param[i])
-                            process=mp.Process(target=self.save_,args=(self.path))
+                            self._save(self.path)
+                            process=mp.Process(target=self.save_p,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
                             process.start()
                         else:
                             self.save_(self.path)
                     else:
-                        self.save_param_(self.path)
+                        if parallel_training_and_save:
+                            process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
+                            process.start()
+                        else:
+                            self.save_param_(self.path)
                 if self.trial_count!=None:
                     if len(self.reward_list)>=self.trial_count:
                         avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -2638,12 +2643,17 @@ class RL:
                                         self.param_[i][j]=tf.identity(self.param[i][j])
                                 else:
                                     self.param_[i]=tf.identity(self.param[i])
-                            process=mp.Process(target=self.save_,args=(self.path))
+                            self._save(self.path)
+                            process=mp.Process(target=self.save_p,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
                             process.start()
                         else:
                             self.save_(self.path)
                     else:
-                        self.save_param_(self.path)
+                        if parallel_training_and_save:
+                            process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
+                            process.start()
+                        else:
+                            self.save_param_(self.path)
                 if self.trial_count!=None:
                     if len(self.reward_list)>=self.trial_count:
                         avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -2674,17 +2684,36 @@ class RL:
                 self.time+=(t2-t1)
         if self.parallel_store_and_training:
             self.build_opt(self.optimizer) 
-        time_=self.time-int(self.time)
-        if time_<0.5:
-            self.total_time=int(self.time)
+        if parallel_training_and_save:
+            t1=time.time()
+            while True:
+                if self.save_flag.value:
+                    t2=time.time()
+                    self.time+=(t2-t1)
+                    self._time=self.time-int(self.time)
+                    if self._time<0.5:
+                        self.time=int(self.time)
+                    else:
+                        self.time=int(self.time)+1
+                    self.total_time+=self.time
+                    if p!=0:
+                        print('time:{0}s'.format(self.time))
+                    for callback in self.callbacks:
+                        if hasattr(callback, 'on_train_end'):
+                            callback.on_train_end(logs={})
+                    return
         else:
-            self.total_time=int(self.time)+1
-        self.total_time+=self.time
-        if p!=0:
-            print('time:{0}s'.format(self.time))
-        for callback in self.callbacks:
-            if hasattr(callback, 'on_train_end'):
-                callback.on_train_end(logs={})
+            self._time=self.time-int(self.time)
+            if self._time<0.5:
+                self.time=int(self.time)
+            else:
+                self.time=int(self.time)+1
+            self.total_time+=self.time
+            if p!=0:
+                print('time:{0}s'.format(self.time))
+            for callback in self.callbacks:
+                if hasattr(callback, 'on_train_end'):
+                    callback.on_train_end(logs={})
         return
     
     
@@ -2908,12 +2937,17 @@ class RL:
                                             self.param_[i][j]=tf.identity(self.param[i][j])
                                     else:
                                         self.param_[i]=tf.identity(self.param[i])
-                                process=mp.Process(target=self.save_,args=(self.path))
+                                self._save(self.path)
+                                process=mp.Process(target=self.save_p,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
                                 process.start()
                             else:
                                 self.save_(self.path)
                         else:
-                            self.save_param_(self.path)
+                            if parallel_training_and_save:
+                                process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
+                                process.start()
+                            else:
+                                self.save_param_(self.path)
                     if self.trial_count!=None:
                         if len(self.reward_list)>=self.trial_count:
                             avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -2998,12 +3032,17 @@ class RL:
                                             self.param_[i][j]=tf.identity(self.param[i][j])
                                     else:
                                         self.param_[i]=tf.identity(self.param[i])
-                                process=mp.Process(target=self.save_,args=(self.path))
+                                self._save(self.path)
+                                process=mp.Process(target=self.save_p,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
                                 process.start()
                             else:
                                 self.save_(self.path)
                         else:
-                            self.save_param_(self.path)
+                            if parallel_training_and_save:
+                                process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
+                                process.start()
+                            else:
+                                self.save_param_(self.path)
                     if self.trial_count!=None:
                         if len(self.reward_list)>=self.trial_count:
                             avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -3082,12 +3121,17 @@ class RL:
                                             self.param_[i][j]=tf.identity(self.param[i][j])
                                     else:
                                         self.param_[i]=tf.identity(self.param[i])
-                                process=mp.Process(target=self.save_,args=(self.path))
+                                self._save(self.path)
+                                process=mp.Process(target=self.save_p,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
                                 process.start()
                             else:
                                 self.save_(self.path)
                         else:
-                            self.save_param_(self.path)
+                            if parallel_training_and_save:
+                                process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
+                                process.start()
+                            else:
+                                self.save_param_(self.path)
                   
                     episode += 1
                     self.step_in_episode = 0
@@ -3177,12 +3221,17 @@ class RL:
                                             self.param_[i][j]=tf.identity(self.param[i][j])
                                     else:
                                         self.param_[i]=tf.identity(self.param[i])
-                                process=mp.Process(target=self.save_,args=(self.path))
+                                self._save(self.path)
+                                process=mp.Process(target=self.save_p,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
                                 process.start()
                             else:
                                 self.save_(self.path)
                         else:
-                            self.save_param_(self.path)
+                            if parallel_training_and_save:
+                                process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
+                                process.start()
+                            else:
+                                self.save_param_(self.path)
                   
                     episode += 1
                     self.step_in_episode = 0
@@ -3225,17 +3274,36 @@ class RL:
                     self.time+=(t2-t1)
         if self.parallel_store_and_training:
             self.build_opt(self.optimizer)
-        time_=self.time-int(self.time)
-        if time_<0.5:
-            self.total_time=int(self.time)
+        if parallel_training_and_save:
+            t1=time.time()
+            while True:
+                if self.save_flag.value:
+                    t2=time.time()
+                    self.time+=(t2-t1)
+                    self._time=self.time-int(self.time)
+                    if self._time<0.5:
+                        self.time=int(self.time)
+                    else:
+                        self.time=int(self.time)+1
+                    self.total_time+=self.time
+                    if p!=0:
+                        print('time:{0}s'.format(self.time))
+                    for callback in self.callbacks:
+                        if hasattr(callback, 'on_train_end'):
+                            callback.on_train_end(logs={})
+                    return
         else:
-            self.total_time=int(self.time)+1
-        self.total_time+=self.time
-        if p!=0:
-            print('time:{0}s'.format(self.time))
-        for callback in self.callbacks:
-            if hasattr(callback, 'on_train_end'):
-                callback.on_train_end(logs={})
+            self._time=self.time-int(self.time)
+            if self._time<0.5:
+                self.time=int(self.time)
+            else:
+                self.time=int(self.time)+1
+            self.total_time+=self.time
+            if p!=0:
+                print('time:{0}s'.format(self.time))
+            for callback in self.callbacks:
+                if hasattr(callback, 'on_train_end'):
+                    callback.on_train_end(logs={})
         return
     
     
@@ -3351,9 +3419,16 @@ class RL:
     
     
     def save_param(self,path):
+        if self.parallel_training_and_save:
+            self.test_flag.value=False
         output_file=open(path,'wb')
-        pickle.dump(self.param,output_file)
+        if self.parallel_training_and_save:
+            pickle.dump(self.param_,output_file)
+        else:
+            pickle.dump(self.param,output_file)
         output_file.close()
+        if self.parallel_training_and_save:
+            self.test_flag.value=True
         return
     
     
