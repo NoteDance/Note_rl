@@ -65,36 +65,37 @@ rl_agent.set(
 )
 ```
 
-# RL.train:
+# RL.train
 
-Trains the agent using single-process or multi-process experience collection and training.
+Trains the agent with highly configurable single- or multi-process experience collection and training loops.
 
 **Parameters:**
 
 | Parameter                       | Type                  | Default   | Description |
 |---------------------------------|-----------------------|-----------|-------------|
 | `train_loss`                    | `tf.keras.metrics.Metric` | **Required** | Metric (e.g., `tf.keras.metrics.Mean()`) to track training loss. |
-| `optimizer`                     | Optimizer or list     | `None`    | Training optimizer(s). Uses previously set optimizer if `None`. |
-| `episodes`                      | `int` or `None`       | `None`    | Number of episodes to train. If `None`, trains indefinitely. |
+| `optimizer`                     | Optimizer or list     | `None`    | Optimizer(s). Uses previously set optimizer if `None`. |
+| `episodes`                      | `int` or `None`       | `None`    | Number of episodes to train. If `None`, trains indefinitely until stopped. |
 | `pool_network`                  | `bool`                | `True`    | Use multiple parallel environments for faster data collection. |
-| `parallel_store_and_training`   | `bool`                | `True`    | Run experience collection and training in parallel processes. |
-| `processes`                     | `int` or `None`       | `None`    | Number of parallel environment processes (typically CPU cores). |
+| `parallel_store_and_training`   | `bool`                | `True`    | Run experience collection and training in parallel processes (non-blocking). |
+| `parallel_training_and_save`    | `bool`                | `False`   | Run checkpoint saving in a separate process (non-blocking). |
+| `processes`                     | `int` or `None`       | `None`    | Number of parallel environment processes (typically number of CPU cores). |
 | `num_store`                     | `int`                 | `1`       | Number of collection cycles per training update in parallel mode. |
-| `processes_her`                 | `int` or `None`       | `None`    | Parallel processes for HER sampling. |
+| `processes_her`                 | `int` or `None`       | `None`    | Parallel processes for Hindsight Experience Replay (HER) sampling. |
 | `processes_pr`                  | `int` or `None`       | `None`    | Parallel processes for prioritized replay sampling. |
-| `window_size`                   | `int`, `float`, callable, or `None` | `None` | Buffer trimming: keep recent fraction or fixed number of transitions. |
+| `window_size`                   | `int`, `float`, callable, or `None` | `None` | Buffer trimming: keep recent fraction or fixed number of transitions (or callable returning size). |
 | `clearing_freq`                 | `int` or `None`       | `None`    | Frequency to clear old transitions from per-process buffers. |
 | `window_size_`                  | `int` or `None`       | `None`    | General fallback window size. |
 | `window_size_ppo`               | `int` or `None`       | `None`    | Window size specific to PPO prioritization. |
 | `window_size_pr`                | `int` or `None`       | `None`    | Window size specific to standard prioritized replay. |
-| `jit_compile`                   | `bool`                | `True`    | Enable XLA compilation for faster training steps. |
+| `jit_compile`                   | `bool`                | `True`    | Enable XLA/JIT compilation for faster training steps. |
 | `random`                        | `bool`                | `False`   | Randomly distribute stored transitions across process buffers (load balancing). |
 | `save_data`                     | `bool`                | `True`    | Include replay buffer data when saving the model. |
 | `callbacks`                     | `list` or `None`      | `None`    | List of Keras-style callbacks (e.g., logging, early stopping). |
-| `p`                             | `int` or `None`       | `None`    | Print progress every `p` episodes (default: every 10). |
+| `p`                             | `int` or `None`       | `None`    | Print progress every `p` episodes (default: every ~10% of total). |
 
 **Returns:**  
-None. Prints progress, rewards, and total training time.
+None. Prints episode progress, rewards (current + rolling average if `trial_count` set), loss, and total training time.
 
 **Example:**
 ```python
@@ -103,38 +104,54 @@ rl_agent.train(
     episodes=5000,
     pool_network=True,
     parallel_store_and_training=True,
+    parallel_training_and_save=True,
     processes=12,
     jit_compile=True,
-    p=20
+    p=50
 )
 ```
 
-# RL.distributed_training:
+# RL.distributed_training
 
-Distributed version of `train` using TensorFlow distribution strategies (Mirrored, MultiWorkerMirrored, ParameterServer).
+Distributed training across GPUs/workers using TensorFlow distribution strategies (`MirroredStrategy`, `MultiWorkerMirroredStrategy`, `ParameterServerStrategy`). Supports all features of `train()`.
 
 **Parameters:**  
-All parameters from `train` **plus**:
+All parameters from `train()` **plus**:
 
 | Parameter                       | Type                  | Default   | Description |
 |---------------------------------|-----------------------|-----------|-------------|
-| `optimizer`                     | Optimizer or list     | `None`    | Same as `train`. |
+| `optimizer`                     | Optimizer or list     | `None`    | Same as `train()`. |
 | `strategy`                      | `tf.distribute.Strategy` | **Required** | Distribution strategy (e.g., `tf.distribute.MirroredStrategy()`). |
-| `episodes`                      | `int` or `None`       | `None`    | Total episodes (used for MirroredStrategy). |
-| `num_episodes`                  | `int` or `None`       | `None`    | Alternative episode count (used for MultiWorker/ParameterServer). |
+| `episodes`                      | `int` or `None`       | `None`    | Total episodes (used primarily with `MirroredStrategy`). |
+| `num_episodes`                  | `int` or `None`       | `None`    | Alternative episode count (used with `MultiWorkerMirroredStrategy`/`ParameterServerStrategy`). |
 
 **Returns:**  
-None. Training runs across GPUs/workers using the specified strategy.
+None. Training runs across devices/workers using the specified strategy.
 
 **Example (MirroredStrategy):**
 ```python
 strategy = tf.distribute.MirroredStrategy()
+
 rl_agent.distributed_training(
-    train_loss=loss_metric,
+    train_loss=train_loss,
     strategy=strategy,
-    episodes=1000,
+    episodes=10000,
+    pool_network=True,
+    parallel_store_and_training=True,
     processes=8,
-    pool_network=True
+    jit_compile=True
+)
+```
+
+**Example (ParameterServerStrategy):**
+```python
+strategy = tf.distribute.experimental.ParameterServerStrategy()
+
+rl_agent.distributed_training(
+    train_loss=train_loss,
+    strategy=strategy,
+    num_episodes=20000,
+    processes=16
 )
 ```
 
