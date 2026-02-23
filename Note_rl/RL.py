@@ -2541,50 +2541,7 @@ class RL:
                 self.loss_list.append(loss)
                 self.total_episode+=1
                 if self.path!=None and i%self.save_freq==0:
-                    if self.save_param_only==False:
-                        if parallel_training_and_save:
-                            if type(self.optimizer)==list:
-                                self.state_dict=manager.list()
-                                for i in range(len(self.optimizer)):
-                                    self.state_dict.append(dict())
-                                    self.optimizer[i].save_own_variables(self.state_dict[-1])
-                            else:
-                                self.state_dict=manager.dict()
-                                self.optimizer.save_own_variables(self.state_dict)
-                            self.param_=manager.list([None for _ in range(len(self.param))])
-                            for i in range(len(self.param)):
-                                if type(self.param[i])==list:
-                                    for j in range(len(self.param[i])):
-                                        self.param_[i][j]=tf.identity(self.param[i][j])
-                                else:
-                                    self.param_[i]=tf.identity(self.param[i])
-                            self._save(self.path)
-                            if parallel_dump:
-                                if self.avg_reward!=None:
-                                    path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                else:
-                                    path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                process=mp.Process(target=self.save,args=(path))
-                                process.start()
-                            else:
-                                process=mp.Process(target=self.save,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                process.start()
-                        else:
-                            self.save_(self.path)
-                    else:
-                        if parallel_training_and_save:
-                            if parallel_dump:
-                                if self.avg_reward!=None:
-                                    path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                else:
-                                    path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                process=mp.Process(target=self.save_param,args=(path))
-                                process.start()
-                            else:
-                                process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                process.start()
-                        else:
-                            self.save_param_(self.path)
+                    self.save_checkpoint()
                 if self.trial_count!=None:
                     if len(self.reward_list)>=self.trial_count:
                         self.avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -2653,50 +2610,7 @@ class RL:
                 i+=1
                 self.total_episode+=1
                 if self.path!=None and i%self.save_freq==0:
-                    if self.save_param_only==False:
-                        if parallel_training_and_save:
-                            if type(self.optimizer)==list:
-                                self.state_dict=manager.list()
-                                for i in range(len(self.optimizer)):
-                                    self.state_dict.append(dict())
-                                    self.optimizer[i].save_own_variables(self.state_dict[-1])
-                            else:
-                                self.state_dict=manager.dict()
-                                self.optimizer.save_own_variables(self.state_dict)
-                            self.param_=manager.list([None for _ in range(len(self.param))])
-                            for i in range(len(self.param)):
-                                if type(self.param[i])==list:
-                                    for j in range(len(self.param[i])):
-                                        self.param_[i][j]=tf.identity(self.param[i][j])
-                                else:
-                                    self.param_[i]=tf.identity(self.param[i])
-                            self._save(self.path)
-                            if parallel_dump:
-                                if self.avg_reward!=None:
-                                    path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                else:
-                                    path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                process=mp.Process(target=self.save,args=(path))
-                                process.start()
-                            else:
-                                process=mp.Process(target=self.save,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                process.start()
-                        else:
-                            self.save_(self.path)
-                    else:
-                        if parallel_training_and_save:
-                            if parallel_dump:
-                                if self.avg_reward!=None:
-                                    path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                else:
-                                    path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                process=mp.Process(target=self.save_param,args=(path))
-                                process.start()
-                            else:
-                                process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                process.start()
-                        else:
-                            self.save_param_(self.path)
+                    self.save_checkpoint()
                 if self.trial_count!=None:
                     if len(self.reward_list)>=self.trial_count:
                         self.avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -2975,50 +2889,7 @@ class RL:
                     self.loss_list.append(loss)
                     self.total_episode+=1
                     if self.path!=None and i%self.save_freq==0:
-                        if self.save_param_only==False:
-                            if parallel_training_and_save:
-                                if type(self.optimizer)==list:
-                                    self.state_dict=manager.list()
-                                    for i in range(len(self.optimizer)):
-                                        self.state_dict.append(dict())
-                                        self.optimizer[i].save_own_variables(self.state_dict[-1])
-                                else:
-                                    self.state_dict=manager.dict()
-                                    self.optimizer.save_own_variables(self.state_dict)
-                                self.param_=manager.list([None for _ in range(len(self.param))])
-                                for i in range(len(self.param)):
-                                    if type(self.param[i])==list:
-                                        for j in range(len(self.param[i])):
-                                            self.param_[i][j]=tf.identity(self.param[i][j])
-                                    else:
-                                        self.param_[i]=tf.identity(self.param[i])
-                                self._save(self.path)
-                                if parallel_dump:
-                                    if self.avg_reward!=None:
-                                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                    else:
-                                        path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                    process=mp.Process(target=self.save,args=(path))
-                                    process.start()
-                                else:
-                                    process=mp.Process(target=self.save,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                    process.start()
-                            else:
-                                self.save_(self.path)
-                        else:
-                            if parallel_training_and_save:
-                                if parallel_dump:
-                                    if self.avg_reward!=None:
-                                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                    else:
-                                        path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                    process=mp.Process(target=self.save_param,args=(path))
-                                    process.start()
-                                else:
-                                    process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                    process.start()
-                            else:
-                                self.save_param_(self.path)
+                        self.save_checkpoint()
                     if self.trial_count!=None:
                         if len(self.reward_list)>=self.trial_count:
                             self.avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -3086,50 +2957,7 @@ class RL:
                     i+=1
                     self.total_episode+=1
                     if self.path!=None and i%self.save_freq==0:
-                        if self.save_param_only==False:
-                            if parallel_training_and_save:
-                                if type(self.optimizer)==list:
-                                    self.state_dict=manager.list()
-                                    for i in range(len(self.optimizer)):
-                                        self.state_dict.append(dict())
-                                        self.optimizer[i].save_own_variables(self.state_dict[-1])
-                                else:
-                                    self.state_dict=manager.dict()
-                                    self.optimizer.save_own_variables(self.state_dict)
-                                self.param_=manager.list([None for _ in range(len(self.param))])
-                                for i in range(len(self.param)):
-                                    if type(self.param[i])==list:
-                                        for j in range(len(self.param[i])):
-                                            self.param_[i][j]=tf.identity(self.param[i][j])
-                                    else:
-                                        self.param_[i]=tf.identity(self.param[i])
-                                self._save(self.path)
-                                if parallel_dump:
-                                    if self.avg_reward!=None:
-                                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                    else:
-                                        path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                    process=mp.Process(target=self.save,args=(path))
-                                    process.start()
-                                else:
-                                    process=mp.Process(target=self.save,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                    process.start()
-                            else:
-                                self.save_(self.path)
-                        else:
-                            if parallel_training_and_save:
-                                if parallel_dump:
-                                    if self.avg_reward!=None:
-                                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                    else:
-                                        path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                    process=mp.Process(target=self.save_param,args=(path))
-                                    process.start()
-                                else:
-                                    process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                    process.start()
-                            else:
-                                self.save_param_(self.path)
+                        self.save_checkpoint()
                     if self.trial_count!=None:
                         if len(self.reward_list)>=self.trial_count:
                             self.avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
@@ -3191,50 +3019,7 @@ class RL:
                         loss=self.train2()
                         
                     if self.path!=None and episode%self.save_freq==0:
-                        if self.save_param_only==False:
-                            if parallel_training_and_save:
-                                if type(self.optimizer)==list:
-                                    self.state_dict=manager.list()
-                                    for i in range(len(self.optimizer)):
-                                        self.state_dict.append(dict())
-                                        self.optimizer[i].save_own_variables(self.state_dict[-1])
-                                else:
-                                    self.state_dict=manager.dict()
-                                    self.optimizer.save_own_variables(self.state_dict)
-                                self.param_=manager.list([None for _ in range(len(self.param))])
-                                for i in range(len(self.param)):
-                                    if type(self.param[i])==list:
-                                        for j in range(len(self.param[i])):
-                                            self.param_[i][j]=tf.identity(self.param[i][j])
-                                    else:
-                                        self.param_[i]=tf.identity(self.param[i])
-                                self._save(self.path)
-                                if parallel_dump:
-                                    if self.avg_reward!=None:
-                                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                    else:
-                                        path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                    process=mp.Process(target=self.save,args=(path))
-                                    process.start()
-                                else:
-                                    process=mp.Process(target=self.save,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                    process.start()
-                            else:
-                                self.save_(self.path)
-                        else:
-                            if parallel_training_and_save:
-                                if parallel_dump:
-                                    if self.avg_reward!=None:
-                                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                    else:
-                                        path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                    process=mp.Process(target=self.save_param,args=(path))
-                                    process.start()
-                                else:
-                                    process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                    process.start()
-                            else:
-                                self.save_param_(self.path)
+                        self.save_checkpoint()
                   
                     episode += 1
                     self.step_in_episode = 0
@@ -3307,50 +3092,7 @@ class RL:
                         loss=self.train2()
                         
                     if self.path!=None and episode%self.save_freq==0:
-                        if self.save_param_only==False:
-                            if parallel_training_and_save:
-                                if type(self.optimizer)==list:
-                                    self.state_dict=manager.list()
-                                    for i in range(len(self.optimizer)):
-                                        self.state_dict.append(dict())
-                                        self.optimizer[i].save_own_variables(self.state_dict[-1])
-                                else:
-                                    self.state_dict=manager.dict()
-                                    self.optimizer.save_own_variables(self.state_dict)
-                                self.param_=manager.list([None for _ in range(len(self.param))])
-                                for i in range(len(self.param)):
-                                    if type(self.param[i])==list:
-                                        for j in range(len(self.param[i])):
-                                            self.param_[i][j]=tf.identity(self.param[i][j])
-                                    else:
-                                        self.param_[i]=tf.identity(self.param[i])
-                                self._save(self.path)
-                                if parallel_dump:
-                                    if self.avg_reward!=None:
-                                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                    else:
-                                        path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                    process=mp.Process(target=self.save,args=(path))
-                                    process.start()
-                                else:
-                                    process=mp.Process(target=self.save,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                    process.start()
-                            else:
-                                self.save_(self.path)
-                        else:
-                            if parallel_training_and_save:
-                                if parallel_dump:
-                                    if self.avg_reward!=None:
-                                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                                    else:
-                                        path=self.path+'-{0}.dat'.format(self.total_epoch)
-                                    process=mp.Process(target=self.save_param,args=(path))
-                                    process.start()
-                                else:
-                                    process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
-                                    process.start()
-                            else:
-                                self.save_param_(self.path)
+                        self.save_checkpoint()
                   
                     episode += 1
                     self.step_in_episode = 0
@@ -3827,6 +3569,54 @@ class RL:
         return
     
     
+    def save_checkpoint(self):
+        manager=mp.Manager()
+        if self.save_param_only==False:
+            if self.parallel_training_and_save:
+                if type(self.optimizer)==list:
+                    self.state_dict=manager.list()
+                    for i in range(len(self.optimizer)):
+                        self.state_dict.append(dict())
+                        self.optimizer[i].save_own_variables(self.state_dict[-1])
+                else:
+                    self.state_dict=manager.dict()
+                    self.optimizer.save_own_variables(self.state_dict)
+                self.param_=manager.list([None for _ in range(len(self.param))])
+                for i in range(len(self.param)):
+                    if type(self.param[i])==list:
+                        for j in range(len(self.param[i])):
+                            self.param_[i][j]=tf.identity(self.param[i][j])
+                    else:
+                        self.param_[i]=tf.identity(self.param[i])
+                self._save(self.path)
+                if self.parallel_dump:
+                    if self.avg_reward!=None:
+                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
+                    else:
+                        path=self.path+'-{0}.dat'.format(self.total_epoch)
+                    process=mp.Process(target=self.save,args=(path))
+                    process.start()
+                else:
+                    process=mp.Process(target=self.save,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
+                    process.start()
+            else:
+                self.save_(self.path)
+        else:
+            if self.parallel_training_and_save:
+                if self.parallel_dump:
+                    if self.avg_reward!=None:
+                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
+                    else:
+                        path=self.path+'-{0}.dat'.format(self.total_epoch)
+                    process=mp.Process(target=self.save_param,args=(path))
+                    process.start()
+                else:
+                    process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
+                    process.start()
+            else:
+                self.save_param_(self.path)
+    
+    
     def restore(self,path):
         input_file=open(path,'rb')
         model=pickle.load(input_file)
@@ -3834,7 +3624,7 @@ class RL:
         self.__dict__.update(model.__dict__)
         self.param=param
         param=pickle.load(input_file)
-        nn.assign_param(self.param,param)
+        assign_param(self.param,param)
         if type(self.optimizer)==list:
             state_dict=pickle.load(input_file)
             for i in range(len(self.optimizer)):
@@ -3910,7 +3700,7 @@ class RL:
         else:
             self.param=param
             param=pickle.load(input_file2)
-            nn.assign_param(self.param,param)
+            assign_param(self.param,param)
         if self.parallel_dump==True:
             counter=0
             if type(self.optimizer)==list:
@@ -3956,7 +3746,7 @@ class RL:
         else:
             for process in process_list:
                 process.join()
-            nn.assign_param(self.param,param)
+            assign_param(self.param,param)
             counter=0
             if type(self.optimizer)==list:
                 for i in range(len(self.optimizer)):
