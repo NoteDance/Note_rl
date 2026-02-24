@@ -31,7 +31,7 @@ class RL:
         self.path=None
         self.save_freq=1
         self.save_freq_=None
-        self.max_save_files=None
+        self.max_save_files=1
         self.save_best_only=False
         self.save_param_only=False
         self.callbacks=[]
@@ -922,7 +922,7 @@ class RL:
                              axis=None)
     
     
-    def CTL(self, multi_worker_dataset, num_steps_per_episode=None, lock_list=None):
+    def CTL(self, multi_worker_dataset, num_steps_per_episode=None):
         iterator = iter(multi_worker_dataset)
         total_loss = 0.0
         num_batches = 0
@@ -949,7 +949,7 @@ class RL:
                         self._ess = self.compute_ess(None, None)
                     for p in range(self.processes):
                         if self.parallel_store_and_training:
-                            lock_list[p].acquire()
+                            self.lock_list[p].acquire()
                         if hasattr(self,'window_size_func'):
                             window_size=int(self.window_size_func(p))
                             if self.PPO:
@@ -972,7 +972,7 @@ class RL:
                                 weights = self.TD_list[p] + 1e-7
                                 self.ess_[p] = self.compute_ess_from_weights(weights)
                         if self.parallel_store_and_training:
-                            lock_list[p].release()
+                            self.lock_list[p].release()
                     if self.PPO:
                         self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                         self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
@@ -1020,14 +1020,14 @@ class RL:
                         if self.PPO:
                             for p in range(self.processes):
                                 if self.parallel_store_and_training:
-                                    lock_list[p].acquire()
+                                    self.lock_list[p].acquire()
                                 self.state_pool_list[p]=None
                                 self.action_pool_list[p]=None
                                 self.next_state_pool_list[p]=None
                                 self.reward_pool_list[p]=None
                                 self.done_pool_list[p]=None
                                 if self.parallel_store_and_training:
-                                    lock_list[p].release()
+                                    self.lock_list[p].release()
                     if hasattr(self, 'adjust_func') and len(state_pool)>=self.pool_size_:
                         self.adjust_func()
                         if self.num_updates!=None and self.batch_counter%self.update_batches==0:
@@ -1073,10 +1073,15 @@ class RL:
                         break
                 if self.stop_training==True:
                     return total_loss,num_batches
+                if self.save_freq_!=None and self.batch_counter%self.save_freq_==0:
+                    if self.parallel_training_and_test and self.test_flag.value:
+                        self.save_checkpoint()
+                    elif not self.parallel_training_and_test:
+                        self.save_checkpoint()
             return total_loss,num_batches
         
         
-    def clear_pool(self, lock_list):
+    def clear_pool(self):
         for p in range(self.processes):
             if p==0:
                 self.TD_list[p][:self.length_list[p]]=self.prioritized_replay.TD[0:self.length_list[p]]
@@ -1099,7 +1104,7 @@ class RL:
                     self.ratio_list[p][:self.length_list[p]]=self.prioritized_replay.ratio[index1-1:index2]
         for p in range(self.processes):
             if len(self.state_pool_list[p])>math.ceil(self.pool_size/self.processes):
-                lock_list[p].acquire()
+                self.lock_list[p].acquire()
                 if type(self.window_size)!=int:
                     window_size=int(self.window_size(p))
                 else:
@@ -1124,7 +1129,7 @@ class RL:
                         self.TD_list[p]=self.TD_list[p][len(self.state_pool_list[p])-math.ceil(self.pool_size/self.processes):]
                         if self.PPO:
                             self.ratio_list[p]=self.ratio_list[p][len(self.state_pool_list[p])-math.ceil(self.pool_size/self.processes):]
-                lock_list[p].release()
+                self.lock_list[p].release()
     
     
     def get_trainable_variables(self, optimizer):
@@ -1187,7 +1192,7 @@ class RL:
                 optimizer.load_own_variables(self.share_opt_variables[7])
     
     
-    def train1(self, lock_list=None):
+    def train1(self):
         self.step_counter+=1
         self.end_flag=False
         batches=int((len(self.state_pool)-len(self.state_pool)%self.batch)/self.batch)
@@ -1230,7 +1235,7 @@ class RL:
                             self.prioritized_replay.TD[self.prioritized_replay.index]=tf.abs(self.prioritized_replay.TD_[:self.prioritized_replay.batch])
                             if self.PPO:
                                 self.prioritized_replay.ration[self.prioritized_replay.index]=self.prioritized_replay.ratio_[:self.prioritized_replay.batch]
-                            self.clear_pool(lock_list)
+                            self.clear_pool()
                         else:
                             self.prioritized_replay.update()
                         total_loss+=loss
@@ -1248,7 +1253,7 @@ class RL:
                                     self._ess = self.compute_ess(None, None)
                                 for p in range(self.processes):
                                     if self.parallel_store_and_training:
-                                        lock_list[p].acquire()
+                                        self.lock_list[p].acquire()
                                     if hasattr(self,'window_size_func'):
                                         window_size=int(self.window_size_func(p))
                                         if self.PPO:
@@ -1271,7 +1276,7 @@ class RL:
                                             weights = self.TD_list[p] + 1e-7
                                             self.ess_[p] = self.compute_ess_from_weights(weights)
                                     if self.parallel_store_and_training:
-                                        lock_list[p].release()
+                                        self.lock_list[p].release()
                                 if self.PPO:
                                     self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
@@ -1318,7 +1323,7 @@ class RL:
                             self.share_TD[7][self.prioritized_replay.index]=tf.abs(self.prioritized_replay.TD_[:self.prioritized_replay.batch])
                             if self.PPO:
                                 self.share_ration[7][self.prioritized_replay.index]=self.prioritized_replay.ratio_[:self.prioritized_replay.batch]
-                            self.clear_pool(lock_list)
+                            self.clear_pool()
                         else:
                             self.prioritized_replay.update()
                         self.batch_counter+=1
@@ -1334,7 +1339,7 @@ class RL:
                                     self._ess = self.compute_ess(None, None)
                                 for p in range(self.processes):
                                     if self.parallel_store_and_training:
-                                        lock_list[p].acquire()
+                                        self.lock_list[p].acquire()
                                     if hasattr(self,'window_size_func'):
                                         window_size=int(self.window_size_func(p))
                                         if self.PPO:
@@ -1357,7 +1362,7 @@ class RL:
                                             weights = self.TD_list[p] + 1e-7
                                             self.ess_[p] = self.compute_ess_from_weights(weights)
                                     if self.parallel_store_and_training:
-                                        lock_list[p].release()
+                                        self.lock_list[p].release()
                                 if self.PPO:
                                     self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
@@ -1389,6 +1394,11 @@ class RL:
                                     self.get_trainable_variables(optimizer)
                                     self.get_opt_variables(optimizer)
                                 return self.train_loss.result().numpy()
+                if self.save_freq_!=None and self.batch_counter%self.save_freq_==0:
+                    if self.parallel_training_and_test and self.test_flag.value:
+                        self.save_checkpoint()
+                    elif not self.parallel_training_and_test:
+                        self.save_checkpoint()
                 batch_logs = {'loss': loss.numpy()}
                 for callback in self.callbacks:
                     if hasattr(callback, 'on_batch_end'):
@@ -1429,7 +1439,7 @@ class RL:
                             self.share_TD[7][self.prioritized_replay.index]=tf.abs(self.prioritized_replay.TD_[:self.prioritized_replay.batch])
                             if self.PPO:
                                 self.share_ration[7][self.prioritized_replay.index]=self.prioritized_replay.ratio_[:self.prioritized_replay.batch]
-                            self.clear_pool(lock_list)
+                            self.clear_pool()
                         else:
                             self.prioritized_replay.update()
                         total_loss+=loss
@@ -1447,7 +1457,7 @@ class RL:
                                     self._ess = self.compute_ess(None, None)
                                 for p in range(self.processes):
                                     if self.parallel_store_and_training:
-                                        lock_list[p].acquire()
+                                        self.lock_list[p].acquire()
                                     if hasattr(self,'window_size_func'):
                                         window_size=int(self.window_size_func(p))
                                         if self.PPO:
@@ -1470,7 +1480,7 @@ class RL:
                                             weights = self.TD_list[p] + 1e-7
                                             self.ess_[p] = self.compute_ess_from_weights(weights)
                                     if self.parallel_store_and_training:
-                                        lock_list[p].release()
+                                        self.lock_list[p].release()
                                 if self.PPO:
                                     self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                     self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
@@ -1516,7 +1526,7 @@ class RL:
                         self.share_TD[7][self.prioritized_replay.index]=tf.abs(self.prioritized_replay.TD_[:self.prioritized_replay.batch])
                         if self.PPO:
                             self.share_ration[7][self.prioritized_replay.index]=self.prioritized_replay.ratio_[:self.prioritized_replay.batch]
-                        self.clear_pool(lock_list)
+                        self.clear_pool()
                     else:
                         self.prioritized_replay.update()
                     self.batch_counter+=1
@@ -1532,7 +1542,7 @@ class RL:
                                 self._ess = self.compute_ess(None, None)
                             for p in range(self.processes):
                                 if self.parallel_store_and_training:
-                                    lock_list[p].acquire()
+                                    self.lock_list[p].acquire()
                                 if hasattr(self,'window_size_func'):
                                     window_size=int(self.window_size_func(p))
                                     if self.PPO:
@@ -1555,7 +1565,7 @@ class RL:
                                         weights = self.TD_list[p] + 1e-7
                                         self.ess_[p] = self.compute_ess_from_weights(weights)
                                 if self.parallel_store_and_training:
-                                    lock_list[p].release()
+                                    self.lock_list[p].release()
                             if self.PPO:
                                 self.prioritized_replay.ratio=np.concat(self.ratio_list, axis=0)
                                 self.prioritized_replay.TD=np.concat(self.TD_list, axis=0)
@@ -1587,6 +1597,11 @@ class RL:
                                 self.get_trainable_variables(optimizer)
                                 self.get_opt_variables(optimizer)
                             return self.train_loss.result().numpy()
+                if self.save_freq_!=None and self.batch_counter%self.save_freq_==0:
+                    if self.parallel_training_and_test and self.test_flag.value:
+                        self.save_checkpoint()
+                    elif not self.parallel_training_and_test:
+                        self.save_checkpoint()
                 batch_logs = {'loss': loss.numpy()}
                 for callback in self.callbacks:
                     if hasattr(callback, 'on_batch_end'):
@@ -1640,14 +1655,14 @@ class RL:
                                 if self.PPO:
                                     for p in range(self.processes):
                                         if self.parallel_store_and_training:
-                                            lock_list[p].acquire()
+                                            self.lock_list[p].acquire()
                                         self.state_pool_list[p]=None
                                         self.action_pool_list[p]=None
                                         self.next_state_pool_list[p]=None
                                         self.reward_pool_list[p]=None
                                         self.done_pool_list[p]=None
                                         if self.parallel_store_and_training:
-                                            lock_list[p].release()
+                                            self.lock_list[p].release()
                             if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                                 self.adjust_func()
                                 if self.num_updates!=None and self.batch_counter%self.update_batches==0:
@@ -1684,6 +1699,11 @@ class RL:
                                         train_ds=tf.data.Dataset.from_tensor_slices((self.state_pool,self.action_pool,self.next_state_pool,self.reward_pool,self.done_pool)).batch(self.batch)
                             if self.PPO and self.batch_counter%self.update_batches==0:
                                 break
+                        if self.save_freq_!=None and self.batch_counter%self.save_freq_==0:
+                            if self.parallel_training_and_test and self.test_flag.value:
+                                self.save_checkpoint()
+                            elif not self.parallel_training_and_test:
+                                self.save_checkpoint()
                 elif isinstance(self.strategy,tf.distribute.MultiWorkerMirroredStrategy):
                     with self.strategy.scope():
                         multi_worker_dataset = self.strategy.distribute_datasets_from_function(
@@ -1736,14 +1756,14 @@ class RL:
                             if self.PPO:
                                 for p in range(self.processes):
                                     if self.parallel_store_and_training:
-                                        lock_list[p].acquire()
+                                        self.lock_list[p].acquire()
                                     self.state_pool_list[p]=None
                                     self.action_pool_list[p]=None
                                     self.next_state_pool_list[p]=None
                                     self.reward_pool_list[p]=None
                                     self.done_pool_list[p]=None
                                     if self.parallel_store_and_training:
-                                        lock_list[p].release()
+                                        self.lock_list[p].release()
                         if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
                             self.adjust_func()
                             if self.num_updates!=None and self.batch_counter%self.update_batches==0:
@@ -1797,6 +1817,11 @@ class RL:
                                     self.done_pool[7]=self.done_pool[7][idx]
                             if self.PPO and self.batch_counter%self.update_batches==0:
                                 break
+                    if self.save_freq_!=None and self.batch_counter%self.save_freq_==0:
+                        if self.parallel_training_and_test and self.test_flag.value:
+                            self.save_checkpoint()
+                        elif not self.parallel_training_and_test:
+                            self.save_checkpoint()
         if self.update_steps!=None:
             if self.step_counter%self.update_steps==0:
                 self.update_param()
@@ -1856,7 +1881,7 @@ class RL:
                     return (total_loss / num_batches).numpy()
                 else:
                     return self.train_loss.result().numpy() 
-        else:
+        elif self.pool_network==False:
             self.update_param()
         if self.parallel_store_and_training:
             self.get_trainable_variables(optimizer)
@@ -2039,7 +2064,7 @@ class RL:
         return
     
     
-    def store_in_parallel(self,p,lock_list):
+    def store_in_parallel(self,p):
         self.reward[p]=0
         s=self.env_(initial=True,p=p)
         s=np.array(s)
@@ -2072,7 +2097,7 @@ class RL:
             r=np.array(r)
             done=np.array(done)
             if self.random or (self.PR!=True and self.HER!=True and self.TRL!=True):
-                lock_list[index].acquire()
+                self.lock_list[index].acquire()
                 if self.num_steps!=None:
                     if counter==0:
                         next_s_=next_s
@@ -2084,10 +2109,10 @@ class RL:
                         reward=0
                 else:
                     self.pool(s,a,next_s,r,done,index)
-                lock_list[index].release()
+                self.lock_list[index].release()
             else:
                 if self.parallel_store_and_training:
-                    lock_list[index].acquire()
+                    self.lock_list[index].acquire()
                 if self.num_steps!=None:
                     if counter==0:
                         next_s_=next_s
@@ -2109,7 +2134,7 @@ class RL:
                         if len(self.state_pool_list[index])>1:
                             self.TD_list[index]=np.append(self.TD_list[index],np.max(self.prioritized_replay.TD))
                 if self.parallel_store_and_training:
-                    lock_list[index].release()
+                    self.lock_list[index].release()
             self.done_length[index]=len(self.done_pool_list[index])
             if self.MARL==True:
                 r,done=self.reward_done_func_ma(r,done)
@@ -2124,7 +2149,7 @@ class RL:
                 s=next_s_
     
     
-    def prepare(self, lock_list, p=None):
+    def prepare(self, p=None):
         process_list=[]
         if not self.parallel_store_and_training and self.PPO:
             self.modify_ratio_TD()
@@ -2147,10 +2172,10 @@ class RL:
             num_store = self.num_store
         while True:
             if self.parallel_store_and_training:
-                self.store_in_parallel(p,lock_list)
+                self.store_in_parallel(p)
             else:
                 for p in range(self.processes):
-                    process=mp.Process(target=self.store_in_parallel,args=(p,lock_list))
+                    process=mp.Process(target=self.store_in_parallel,args=(p))
                     process.start()
                     process_list.append(process)
                 for process in process_list:
@@ -2457,9 +2482,7 @@ class RL:
                         self.store_counter.append(0)
             self.reward=manager.list([0 for _ in range(processes)])
             if parallel_store_and_training or self.HER!=True or self.TRL!=True:
-                lock_list=[mp.Lock() for _ in range(processes)]
-            else:
-                lock_list=None
+                self.lock_list=[manager.Lock() for _ in range(processes)]
             if self.PR==True:
                 if self.PPO:
                     self.ratio_list=manager.list()
@@ -2516,19 +2539,17 @@ class RL:
                     if parallel_store_and_training:
                         process_list=[]
                         for p in range(processes):
-                            process=mp.Process(target=self.prepare,args=(lock_list,p))
+                            process=mp.Process(target=self.prepare,args=(p,))
                             process.start()
                             process_list.append(process)
                         while True:
                             if sum(self.done_length)>=self.batch:
                                 break
-                        process=mp.Process(target=self.train1,args=(lock_list))
-                        process.start()
-                        process_list.append(process)
+                        self.train1()
                         for process in process_list:
                             process.join()
                     else:
-                        self.prepare(lock_list)
+                        self.prepare()
                         loss=self.train1()
                 else:
                     loss=self.train2()
@@ -2540,7 +2561,7 @@ class RL:
                 self.loss=loss
                 self.loss_list.append(loss)
                 self.total_episode+=1
-                if self.path!=None and i%self.save_freq==0:
+                if self.save_freq_==None and i%self.save_freq==0:
                     self.save_checkpoint()
                 if self.trial_count!=None:
                     if len(self.reward_list)>=self.trial_count:
@@ -2584,19 +2605,17 @@ class RL:
                     if parallel_store_and_training:
                         process_list=[]
                         for p in range(processes):
-                            process=mp.Process(target=self.prepare,args=(lock_list,p))
+                            process=mp.Process(target=self.prepare,args=(p,))
                             process.start()
                             process_list.append(process)
                         while True:
                             if sum(self.done_length)>=self.batch:
                                 break
-                        process=mp.Process(target=self.train1,args=(lock_list))
-                        process.start()
-                        process_list.append(process)
+                        self.train1()
                         for process in process_list:
                             process.join()
                     else:
-                        self.prepare(lock_list)
+                        self.prepare()
                         loss=self.train1()
                 else:
                     loss=self.train2()
@@ -2609,7 +2628,7 @@ class RL:
                 self.loss_list.append(loss)
                 i+=1
                 self.total_episode+=1
-                if self.path!=None and i%self.save_freq==0:
+                if self.save_freq_==None and i%self.save_freq==0:
                     self.save_checkpoint()
                 if self.trial_count!=None:
                     if len(self.reward_list)>=self.trial_count:
@@ -2802,9 +2821,7 @@ class RL:
                         self.store_counter.append(0)
             self.reward=manager.list([0 for _ in range(processes)])
             if parallel_store_and_training or self.HER!=True or self.TRL!=True:
-                lock_list=[mp.Lock() for _ in range(processes)]
-            else:
-                lock_list=None
+                self.lock_list=[manager.Lock() for _ in range(processes)]
             if self.PR==True:
                 if self.PPO:
                     self.ratio_list=manager.list()
@@ -2864,19 +2881,17 @@ class RL:
                         if parallel_store_and_training:
                             process_list=[]
                             for p in range(processes):
-                                process=mp.Process(target=self.prepare,args=(lock_list,p))
+                                process=mp.Process(target=self.prepare,args=(p,))
                                 process.start()
                                 process_list.append(process)
                             while True:
                                 if sum(self.done_length)>=self.batch:
                                     break
-                            process=mp.Process(target=self.train1,args=(lock_list))
-                            process.start()
-                            process_list.append(process)
+                            self.train1()
                             for process in process_list:
                                 process.join()
                         else:
-                            self.prepare(lock_list)
+                            self.prepare()
                             loss=self.train1()
                     else:
                         loss=self.train2()
@@ -2888,7 +2903,7 @@ class RL:
                     self.loss=loss
                     self.loss_list.append(loss)
                     self.total_episode+=1
-                    if self.path!=None and i%self.save_freq==0:
+                    if self.save_freq_==None and i%self.save_freq==0:
                         self.save_checkpoint()
                     if self.trial_count!=None:
                         if len(self.reward_list)>=self.trial_count:
@@ -2931,19 +2946,17 @@ class RL:
                         if parallel_store_and_training:
                             process_list=[]
                             for p in range(processes):
-                                process=mp.Process(target=self.prepare,args=(lock_list,p))
+                                process=mp.Process(target=self.prepare,args=(p,))
                                 process.start()
                                 process_list.append(process)
                             while True:
                                 if sum(self.done_length)>=self.batch:
                                     break
-                            process=mp.Process(target=self.train1,args=(lock_list))
-                            process.start()
-                            process_list.append(process)
+                            self.train1()
                             for process in process_list:
                                 process.join()
                         else:
-                            self.prepare(lock_list)
+                            self.prepare()
                             loss=self.train1()
                     else:
                         loss=self.train2()
@@ -2956,7 +2969,7 @@ class RL:
                     self.loss_list.append(loss)
                     i+=1
                     self.total_episode+=1
-                    if self.path!=None and i%self.save_freq==0:
+                    if self.save_freq_==None and i%self.save_freq==0:
                         self.save_checkpoint()
                     if self.trial_count!=None:
                         if len(self.reward_list)>=self.trial_count:
@@ -3001,24 +3014,22 @@ class RL:
                         if parallel_store_and_training:
                             process_list=[]
                             for p in range(processes):
-                                process=mp.Process(target=self.prepare,args=(lock_list,p))
+                                process=mp.Process(target=self.prepare,args=(p,))
                                 process.start()
                                 process_list.append(process)
                             while True:
                                 if sum(self.done_length)>=self.batch:
                                     break
-                            process=mp.Process(target=self.train1,args=(lock_list))
-                            process.start()
-                            process_list.append(process)
+                            self.train1()
                             for process in process_list:
                                 process.join()
                         else:
-                            self.prepare(lock_list)
+                            self.prepare()
                             loss=self.train1()
                     else:
                         loss=self.train2()
                         
-                    if self.path!=None and episode%self.save_freq==0:
+                    if self.save_freq_==None and episode%self.save_freq==0:
                         self.save_checkpoint()
                   
                     episode += 1
@@ -3074,24 +3085,22 @@ class RL:
                         if parallel_store_and_training:
                             process_list=[]
                             for p in range(processes):
-                                process=mp.Process(target=self.prepare,args=(lock_list,p))
+                                process=mp.Process(target=self.prepare,args=(p,))
                                 process.start()
                                 process_list.append(process)
                             while True:
                                 if sum(self.done_length)>=self.batch:
                                     break
-                            process=mp.Process(target=self.train1,args=(lock_list))
-                            process.start()
-                            process_list.append(process)
+                            self.train1()
                             for process in process_list:
                                 process.join()
                         else:
-                            self.prepare(lock_list)
+                            self.prepare()
                             loss=self.train1()
                     else:
                         loss=self.train2()
                         
-                    if self.path!=None and episode%self.save_freq==0:
+                    if self.save_freq_==None and episode%self.save_freq==0:
                         self.save_checkpoint()
                   
                     episode += 1
@@ -3257,13 +3266,11 @@ class RL:
     
     def save_param_(self,path):
         if self.save_best_only==False:
-            if self.max_save_files==None or self.max_save_files==1:
+            if self.max_save_files==1:
                 path=path
             else:
                 if self.avg_reward!=None:
-                    path=path.replace(path[path.find('.'):],'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward))
-                else:
-                    path=path.replace(path[path.find('.'):],'-{0}.dat'.format(self.total_epoch))
+                    path=path.replace(path[path.find('.'):],'-{0:.4f}.dat'.format(self.avg_reward))
             self.path_list.append(path)
             if len(self.path_list)>self.max_save_files:
                 os.remove(self.path_list[0])
@@ -3272,36 +3279,109 @@ class RL:
         else:
             if self.trial_count!=None:
                 if len(self.reward_list)>=self.trial_count:
-                    self.avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
-                    if self.self.avg_reward==None or self.avg_reward>self.self.avg_reward:
+                    avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
+                    if self.best_avg_reward==None:
+                        self.best_avg_reward=avg_reward
+                    if avg_reward>self.best_avg_reward:
+                        self.path_list.append(path)
+                        if len(self.path_list)>self.max_save_files:
+                            os.remove(self.path_list[0])
+                            del self.path_list[0]
+                        self.best_avg_reward=avg_reward
                         self.save_param(path)
-                        self.self.avg_reward=self.avg_reward
         return
     
     
     def save_param(self,path):
         if self.parallel_training_and_save:
-            self.test_flag.value=False
-            self.path_list_.append(path)
-            if len(self.path_list_)>self.max_save_files:
-                os.remove(self.path_list_[0])
-                del self.path_list_[0]
+            self.save_flag.value=False
+            if self.save_best_only==True:
+                if self.avg_reward is not None and self.avg_reward<self.best_avg_reward:
+                    return
+                elif self.avg_reward>self.best_avg_reward:
+                    self.best_avg_reward=self.avg_reward
+                if self.avg_reward is not None and self.best_avg_reward==None:
+                    self.best_avg_reward=self.avg_reward
+                    return
+            self.param_save_flag_list.clear()
+            if self.parallel_dump:
+                if self.max_save_files==1:
+                    self.path_list_.append(path)
+                else:
+                    self.path_list_.append(path)
+                if len(self.path_list_)>self.max_save_files:
+                    shutil.rmtree(self.path_list_[0])
+                    del self.path_list_[0]
+            else:
+                if self.max_save_files==1:
+                    self.path_list_.append(path)
+                else:
+                    self.path_list_.append(path)
+                if len(self.path_list_)>self.max_save_files:
+                    os.remove(self.path_list_[0])
+                    del self.path_list_[0]
         output_file=open(path,'wb')
         if self.parallel_training_and_save and hasattr(self, 'param_'):
-            pickle.dump(self.param_,output_file)
+            if self.parallel_dump==True:
+                counter=0
+                for i in range(len(self.param_)):
+                    if type(self.param_[i])==list:
+                        for j in range(len(self.param_[i])):
+                            counter+=1
+                            process=mp.Process(target=self.parallel_param_dump,args=(i, j, path, counter))
+                            process.start()
+                    else:
+                        counter+=1
+                        process=mp.Process(target=self.parallel_param_dump,args=(i, None, path, counter))
+                        process.start()
+            else:
+                output_file=open(path,'wb')
+                pickle.dump(self.param_,output_file)
         else:
             pickle.dump(self.param,output_file)
         output_file.close()
         if self.parallel_training_and_save:
-            self.test_flag.value=True
+            self.save_flag.value=True
         return
     
     
     def restore_param(self,path):
-        input_file=open(path,'rb')
-        param=pickle.load(input_file)
-        assign_param(self.param,param)
-        input_file.close()
+        if self.parallel_dump==True:
+            manager=mp.Manager()
+            param=manager.list()
+            counter=0
+            for i in range(len(self.param)):
+                if type(self.param[i])==list:
+                    param.append(manager.list([None for _ in range(len(self.param[i]))]))
+                else:
+                    param.append(None)
+            process_list=[]
+            for i in range(len(self.param)):
+                if type(self.param[i])==list:
+                    for j in range(len(self.param[i])):
+                        counter+=1
+                        input_file1=open(os.path.join(path,"param_index_{counter}.dat"),'rb')
+                        param_index=pickle.load(input_file1)
+                        process=mp.Process(target=self.parallel_param_load,args=(param, param_index, path, counter))
+                        process.start()
+                        process_list.append(process)
+                        input_file1.close()
+                else:
+                    counter+=1
+                    input_file1=open(os.path.join(path,"param_index_{counter}.dat"),'rb')
+                    param_index=pickle.load(input_file1)
+                    process=mp.Process(target=self.parallel_state_load,args=(param, param_index, path, counter))
+                    process.start()
+                    process_list.append(process)
+                    input_file1.close()
+            for process in process_list:
+                process.join()
+            assign_param(self.param,param)
+        else:
+            input_file=open(path,'rb')
+            param=pickle.load(input_file)
+            assign_param(self.param,param)
+            input_file.close()
         return
     
     
@@ -3336,13 +3416,11 @@ class RL:
                 self.reward_pool_list[i]=None
                 self.done_pool_list[i]=None
         if self.save_best_only==False:
-            if self.max_save_files==None or self.max_save_files==1:
+            if self.max_save_files==1:
                 path=path
             else:
                 if self.avg_reward!=None:
-                    path=path.replace(path[path.find('.'):],'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward))
-                else:
-                    path=path.replace(path[path.find('.'):],'-{0}.dat'.format(self.total_epoch))
+                    path=path.replace(path[path.find('.'):],'-{0:.4f}.dat'.format(self.avg_reward))
             self.path_list.append(path)
             if len(self.path_list)>self.max_save_files:
                 os.remove(self.path_list[0])
@@ -3351,10 +3429,16 @@ class RL:
         else:
             if self.trial_count!=None:
                 if len(self.reward_list)>=self.trial_count:
-                    self.avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
-                    if self.self.avg_reward==None or self.avg_reward>self.self.avg_reward:
-                        self.save(path)
-                        self.self.avg_reward=self.avg_reward
+                    avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
+                    if self.best_avg_reward==None:
+                        self.best_avg_reward=avg_reward
+                    if avg_reward>self.best_avg_reward:
+                        self.path_list.append(path)
+                        if len(self.path_list)>self.max_save_files:
+                            os.remove(self.path_list[0])
+                            del self.path_list[0]
+                        self.best_avg_reward=avg_reward
+                        self.save_param(path)
         if self.pool_network and not self.save_data:
             for i in range(self.processes):
                 self.state_pool_list[i]=state_pool_list[i]
@@ -3367,17 +3451,31 @@ class RL:
     
     def _save(self,path):
         if self.save_best_only==False:
-            if self.max_save_files==None or self.max_save_files==1:
+            if self.max_save_files==1:
                 path=path
             else:
                 if self.avg_reward!=None:
-                    path=path.replace(path[path.find('.'):],'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward))
-                else:
-                    path=path.replace(path[path.find('.'):],'-{0}.dat'.format(self.total_epoch))
+                    path=path.replace(path[path.find('.'):],'-{0:.4f}.dat'.format(self.avg_reward))
             self.path_list.append(path)
             if len(self.path_list)>self.max_save_files:
                 os.remove(self.path_list[0])
                 del self.path_list[0]
+        else:
+            if self.trial_count!=None:
+                if len(self.reward_list)>=self.trial_count:
+                    avg_reward=statistics.mean(self.reward_list[-self.trial_count:])
+                    if self.best_avg_reward==None:
+                        self.best_avg_reward=avg_reward
+                        return
+                    if avg_reward<self.best_avg_reward:
+                        return
+                    elif avg_reward>self.best_avg_reward:
+                        self.path_list.append(path)
+                        if len(self.path_list)>self.max_save_files:
+                            os.remove(self.path_list[0])
+                            del self.path_list[0]
+                        self.best_avg_reward=avg_reward
+                        self.save_param(path)
         output_file=open(path,'wb')
         param=self.param
         self.param=None
@@ -3480,10 +3578,20 @@ class RL:
             self.build_opt(self.optimizer)
         if self.parallel_training_and_save:
             self.save_flag.value=False
+            if self.avg_reward!=None:
+                path=path.replace(path[path.find('.'):],'-{0:.4f}.dat'.format(self.avg_reward))
+            if self.save_best_only==True:
+                if self.avg_reward is not None and self.avg_reward<self.best_avg_reward:
+                    return
+                elif self.avg_reward>self.best_avg_reward:
+                    self.best_avg_reward=self.avg_reward
+                if self.avg_reward is not None and self.best_avg_reward==None:
+                    self.best_avg_reward=self.avg_reward
+                    return
             self.param_save_flag_list.clear()
             self.state_save_flag_list.clear()
             if self.parallel_dump:
-                if self.max_save_files==None or self.max_save_files==1:
+                if self.max_save_files==1:
                     self.path_list_.append(path)
                 else:
                     self.path_list_.append(path)
@@ -3491,7 +3599,7 @@ class RL:
                     shutil.rmtree(self.path_list_[0])
                     del self.path_list_[0]
             else:
-                if self.max_save_files==None or self.max_save_files==1:
+                if self.max_save_files==1:
                     self.path_list_.append(path)
                 else:
                     self.path_list_.append(path)
@@ -3568,8 +3676,11 @@ class RL:
                 self.done_pool_list[i]=done_pool_list[i]
         return
     
-    
     def save_checkpoint(self):
+        if self.save_freq!=None:
+            path=self.path+'-{0}.dat'.format(self.total_epoch)
+        elif self.save_freq_!=None:
+            path=self.path+'-{0}.dat'.format(self.batch_counter)
         manager=mp.Manager()
         if self.save_param_only==False:
             if self.parallel_training_and_save:
@@ -3590,28 +3701,20 @@ class RL:
                         self.param_[i]=tf.identity(self.param[i])
                 self._save(self.path)
                 if self.parallel_dump:
-                    if self.avg_reward!=None:
-                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                    else:
-                        path=self.path+'-{0}.dat'.format(self.total_epoch)
-                    process=mp.Process(target=self.save,args=(path))
+                    process=mp.Process(target=self.save,args=(path,))
                     process.start()
                 else:
-                    process=mp.Process(target=self.save,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
+                    process=mp.Process(target=self.save,args=(path.replace(path[path.find('.'):],'-parallel.dat'),))
                     process.start()
             else:
                 self.save_(self.path)
         else:
             if self.parallel_training_and_save:
                 if self.parallel_dump:
-                    if self.avg_reward!=None:
-                        path=self.path+'-{0}-{1:.4f}.dat'.format(self.total_epoch,self.avg_reward)
-                    else:
-                        path=self.path+'-{0}.dat'.format(self.total_epoch)
-                    process=mp.Process(target=self.save_param,args=(path))
+                    process=mp.Process(target=self.save_param,args=(path,))
                     process.start()
                 else:
-                    process=mp.Process(target=self.save_param,args=(self.path.replace(self.path[self.path.find('.'):],'-{0}-parallel.dat'.format(self.total_epoch))))
+                    process=mp.Process(target=self.save_param,args=(path.replace(path[path.find('.'):],'-parallel.dat'),))
                     process.start()
             else:
                 self.save_param_(self.path)
