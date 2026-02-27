@@ -1093,10 +1093,7 @@ class RL:
                 if self.stop_training==True:
                     return total_loss,num_batches
                 if self.save_freq_!=None and self.batch_counter%self.save_freq_==0:
-                    if self.parallel_training_and_test and self.test_flag.value:
-                        self.save_checkpoint()
-                    elif not self.parallel_training_and_test:
-                        self.save_checkpoint()
+                    self.save_checkpoint()
             return total_loss,num_batches
         
         
@@ -1320,10 +1317,7 @@ class RL:
                 if self.PPO and self.batch_counter%self.update_batches==0:
                     return self.train_loss.result().numpy()
         if self.save_freq_!=None and self.batch_counter%self.save_freq_==0:
-            if self.parallel_training_and_test and self.test_flag.value:
-                self.save_checkpoint()
-            elif not self.parallel_training_and_test:
-                self.save_checkpoint()
+            self.save_checkpoint()
         batch_logs = {'loss': loss.numpy()}
         for callback in self.callbacks:
             if hasattr(callback, 'on_batch_end'):
@@ -1459,10 +1453,7 @@ class RL:
                             if self.PPO and self.batch_counter%self.update_batches==0:
                                 break
                         if self.save_freq_!=None and self.batch_counter%self.save_freq_==0:
-                            if self.parallel_training_and_test and self.test_flag.value:
-                                self.save_checkpoint()
-                            elif not self.parallel_training_and_test:
-                                self.save_checkpoint()
+                            self.save_checkpoint()
                 elif isinstance(self.strategy,tf.distribute.MultiWorkerMirroredStrategy):
                     with self.strategy.scope():
                         multi_worker_dataset = self.strategy.distribute_datasets_from_function(
@@ -1571,10 +1562,7 @@ class RL:
                             if self.PPO and self.batch_counter%self.update_batches==0:
                                 break
                     if self.save_freq_!=None and self.batch_counter%self.save_freq_==0:
-                        if self.parallel_training_and_test and self.test_flag.value:
-                            self.save_checkpoint()
-                        elif not self.parallel_training_and_test:
-                            self.save_checkpoint()
+                        self.save_checkpoint()
         if self.update_steps!=None:
             if self.step_counter%self.update_steps==0:
                 self.update_param()
