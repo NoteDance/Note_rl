@@ -2131,7 +2131,7 @@ class RL:
                     dummy_a = np.asarray(dummy_a)
                 self.action_shape = dummy_a.shape if dummy_a.ndim > 0 else (1,)
                 self.next_state_shape = self.state_shape
-            self.max_exp_per_proc = math.ceil(self.pool_size / self.processes)
+            self.max_exp_per_proc = math.ceil(self.pool_size / self.processes * self.buffer_safety_factor)
             self._init_shared_experience_buffers(processes)
             if save_data:
                 if self.clearing_freq!=None:
@@ -2444,7 +2444,7 @@ class RL:
                     dummy_a = np.asarray(dummy_a)
                 self.action_shape = dummy_a.shape if dummy_a.ndim > 0 else (1,)
                 self.next_state_shape = self.state_shape
-            self.max_exp_per_proc = math.ceil(self.pool_size / self.processes)
+            self.max_exp_per_proc = math.ceil(self.pool_size / self.processes * self.buffer_safety_factor)
             self._init_shared_experience_buffers(processes)
             if save_data:
                 if self.clearing_freq!=None:
