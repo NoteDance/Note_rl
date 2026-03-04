@@ -82,8 +82,6 @@ Trains the reinforcement learning agent with highly configurable **single-proces
 | `parallel_dump`                 | `bool`                | `False`   | When `True` and combined with `parallel_training_and_save`, saves parameters and optimizer states **in parallel** to a **folder** (one file per variable) instead of a single `.dat` file. Ideal for extremely large models. |
 | `processes`                     | `int` or `None`       | `None`    | Number of parallel environment processes (typically CPU cores). |
 | `num_store`                     | `int`                 | `1`       | Number of collection cycles per training update in parallel mode. |
-| `processes_her`                 | `int` or `None`       | `None`    | Parallel processes for HER sampling. |
-| `processes_pr`                  | `int` or `None`       | `None`    | Parallel processes for prioritized replay sampling. |
 | `window_size`                   | `int`, `float`, callable, or `None` | `None` | Buffer trimming: keep recent fraction/fixed number of transitions (or callable). |
 | `clearing_freq`                 | `int` or `None`       | `None`    | Frequency to clear old transitions from per-process buffers. |
 | `window_size_`                  | `int` or `None`       | `None`    | General fallback window size. |
