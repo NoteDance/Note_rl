@@ -2242,7 +2242,15 @@ class RL:
         if parallel_training_and_save:
             t1=time.time()
             while True:
+                if self.parallel_dump:
+                    if self.save_param_only==False:
+                        self.save_flag.value=all(self.param_save_flag_list) and all(self.state_save_flag_list)
+                    else:
+                        self.save_flag.value=all(self.param_save_flag_list)
                 if self.save_flag.value:
+                    if self.parallel_dump:
+                        for shm in self.active_shms:
+                            shm.unlink()
                     t2=time.time()
                     self.time+=(t2-t1)
                     self._time=self.time-int(self.time)
@@ -2731,7 +2739,15 @@ class RL:
         if parallel_training_and_save:
             t1=time.time()
             while True:
+                if self.parallel_dump:
+                    if self.save_param_only==False:
+                        self.save_flag.value=all(self.param_save_flag_list) and all(self.state_save_flag_list)
+                    else:
+                        self.save_flag.value=all(self.param_save_flag_list)
                 if self.save_flag.value:
+                    if self.parallel_dump:
+                        for shm in self.active_shms:
+                            shm.unlink()
                     t2=time.time()
                     self.time+=(t2-t1)
                     self._time=self.time-int(self.time)
