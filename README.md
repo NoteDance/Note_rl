@@ -151,6 +151,51 @@ rl_agent.distributed_training(
 - Greatly reduces memory pressure and enables saving/loading of models too large for single-file pickling.
 - Requires `parallel_training_and_save=True`.
 
+# `build()` Method
+
+`build()` is an **optional user-defined method** implemented in subclasses. When the agent needs to reconstruct itself inside a **subprocess** — for example when `parallel_store_and_training=True` — the framework automatically detects and calls it via the internal `prepare()` routine at the start of each episode.
+
+## Purpose
+
+In Python multiprocessing, child processes cannot directly inherit TensorFlow variables from the parent process. The naive approach — pickling the entire model and passing it to the subprocess — incurs significant serialization overhead, especially for large models with many parameters.
+
+To avoid this, the framework uses a two-step approach:
+1. The **main process** serializes only the raw parameter values (as NumPy arrays) into shared memory (`shared_memory`), which is a low-overhead, zero-copy mechanism.
+2. The **child process** calls `build()` to reconstruct the agent structure from scratch (creating all layers and an empty `self.param` list), then the framework writes the shared memory values directly into those variables.
+
+This means **only lightweight metadata is pickled** across the process boundary, while the bulk of the data (parameter tensors) is transferred via shared memory with minimal overhead.
+
+`build()` is therefore responsible for **reconstructing the model structure** (layers and parameters) inside the child process. After `build()` returns, the framework automatically writes the latest parameter values — transferred from the parent via shared memory — into those variables.
+
+## When It Is Called
+
+| Scenario | Trigger Condition |
+|----------|-------------------|
+| Parallel experience collection (`parallel_store_and_training=True`) | Called inside each `prepare()` subprocess at the start of every episode, when `build` is detected |
+| Parallel saving (`parallel_training_and_save=True`) | Called in the saving subprocess to ensure the model structure exists before parameter sync |
+
+## How to Define It
+
+`build()` should only reinitialize the agent's layers and structure. **Do not manually load parameters inside `build()`** — the framework handles parameter synchronization automatically via shared memory after `build()` returns.
+```python
+class MyAgent(RL):
+    def init_weights(self):
+        self.dense1 = nn.dense(128, state_dim)
+        self.dense2 = nn.dense(action_dim, 128)
+
+    # Reconstruct model structure in subprocesses
+    def build(self):
+        self.dense1 = nn.dense(128, state_dim)
+        self.dense2 = nn.dense(action_dim, 128)
+
+    def __call__(self, s, a, next_s, r, d):
+        ...
+```
+
+## When `build()` Is Not Defined
+
+If `build()` is not defined, the framework will skip the shared memory optimization and fall back to pickling the full model (including all parameters) when spawning subprocesses. This is functionally correct but introduces significant serialization overhead for large models. For most standard use cases, defining `build()` is strongly recommended to ensure both correctness and performance in all parallel scenarios.
+
 # Advanced Adaptive Hyperparameter Adjustment
 
 The `RL` class includes powerful adaptive mechanisms to dynamically tune hyperparameters during training based on **Effective Sample Size (ESS)** from prioritized weights or **gradient noise**. These methods help combat issues like weight collapse in prioritized replay, improve sample efficiency, and stabilize training. They are particularly useful with `PR=True` (Prioritized Replay) or `PPO=True`.
