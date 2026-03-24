@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import DataLoader
 import multiprocessing as mp
 import Note_rl.policy as Policy
-import Note_rl.prioritized_replay.pr as PR
+from Note_rl.prioritized_replay import PR
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation

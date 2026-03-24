@@ -1,6 +1,6 @@
 import tensorflow as tf
 import Note_rl.policy as Policy
-import Note_rl.prioritized_replay.pr as PR
+from Note_rl.prioritized_replay import PR
 from Note_rl.assign_param import assign_param
 import multiprocessing as mp
 from multiprocessing import shared_memory
