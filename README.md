@@ -47,6 +47,16 @@ Configures the core hyperparameters and features of the reinforcement learning a
 | `lambda_`             | `float`               | `0.5`      | Weighting factor for combining TD-error and ratio deviation in PPO prioritization. |
 | `alpha`               | `float`               | `0.7`      | Prioritization exponent for experience sampling. |
 
+**Important Note on `PR=True` (Prioritized Experience Replay)**
+
+When `PR=True`, the agent uses an efficient **SumTree** structure for O(log N) sampling and updates.  
+However, **tree rebuilding** (`rebuild()`) is triggered automatically whenever the replay buffer is trimmed or cleared (e.g., `clearing_freq`, `window_size`, `window_size_func`, or in `parallel_store_and_training` mode).
+
+**To avoid excessive tree rebuilds (which can slow training significantly):**
+- Do **not** use very small `window_size` or high `clearing_freq` when `PR=True`.
+- Prefer `window_size` as a **float** (fraction of buffer) or a callable that keeps most of the buffer.
+- In `parallel_store_and_training=True`, keep `num_store` and `update_batches` reasonable so the buffer is not trimmed too frequently.
+
 **Returns:**  
 None (configures the agent in-place).
 
