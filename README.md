@@ -18,7 +18,7 @@ matplotlib>=3.8.4
 
 python>=3.10
 
-# RL.set:
+# RL.set
 
 Configures the core hyperparameters and features of the reinforcement learning agent. This method must be called before training to specify the algorithm behavior, replay buffer settings, and advanced options (e.g., PPO, HER, Prioritized Replay).
 
@@ -74,6 +74,77 @@ rl_agent.set(
     criterion=500.0
 )
 ```
+
+# RL.get_optimal_processes
+
+**Description:**
+
+A utility method that intelligently recommends the optimal number of parallel processes (`processes`) for experience collection in `pool_network=True` mode.  
+
+It considers **three key constraints** simultaneously:
+- Available system memory (including per-process TensorFlow runtime, `tf.Variable`, and multiprocessing overhead)
+- SumTree memory usage (when `PR=True`)
+- Reasonable number of experiences per process (to avoid too-small buffers that hurt sampling quality and window-based trimming)
+
+This helps prevent Out-Of-Memory (OOM) errors while ensuring each process has enough experiences to work effectively.
+
+**Parameters:**
+
+| Parameter             | Type    | Default     | Description |
+|-----------------------|---------|-------------|-------------|
+| `memory_mb`           | `float` | **Required** | Available system memory in MB (e.g., 32768 for 32GB) |
+| `safety_factor`       | `float` | `0.75`      | Safety margin (0.75 = reserve 25% for system/other processes) |
+| `min_exp_per_proc`    | `int`   | `None`      | Minimum experiences per process. Defaults to `10 × batch` |
+
+**Returns:**
+
+`int` — Recommended number of processes to use.
+
+**Example:**
+
+```python
+# 32GB available memory
+processes = rl_agent.get_optimal_processes(memory_mb=32768)
+
+rl_agent.train(
+    train_loss=train_loss,
+    episodes=10000,
+    pool_network=True,
+    processes=processes,           # Use the recommended value
+    parallel_store_and_training=True,
+    PR=True,
+    PPO=True
+)
+```
+
+**Detailed Output Example:**
+
+```
+Memory Analysis (Available 32768 MB):
+   • Experience buffer total: 1245.3 MB
+   • Model parameters: 89.4 MB (shared)
+   • Per-process tf.Variable + overhead: ≈142.1 MB
+   • Minimum experiences per process: ≥ 2560
+   • CPU cores: 64
+   → **Recommended processes: 48** (≈ 4167 experiences per process)
+```
+
+**Usage Tips:**
+
+- Call this method **after** `rl_agent.set(...)` (so `pool_size`, `batch`, `state_shape`, etc. are known).
+- When using `PR=True`, the function automatically accounts for SumTree memory per process.
+- When using `PPO=True`, it accounts for extra `ratio_` variables.
+- Adjust `safety_factor` lower (e.g. 0.65) if you have other memory-heavy processes running.
+- Adjust `min_exp_per_proc` if you want more aggressive parallelism (smaller buffers) or more conservative (larger buffers).
+
+**Why This Method Is Recommended:**
+
+Manually choosing `processes` often leads to either:
+- Out-of-Memory errors (too many processes), or
+- Wasted CPU cores (too few processes), or
+- Poor sampling quality (each process has too few experiences).
+
+`get_optimal_processes` balances memory safety and data quality automatically.
 
 # RL.train
 
