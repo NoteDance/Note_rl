@@ -1980,6 +1980,15 @@ class RL:
                 param_array = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
                 shared_params.append(param_array)
             assign_param(self.param, shared_params)
+        elif hasattr(self, 'build_'):
+            shared_params = []
+            active_shms = []
+            for name, shape, dtype in self.shm_metadata:
+                shm = shared_memory.SharedMemory(name=name)
+                active_shms.append(shm)
+                param_array = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
+                shared_params.append(param_array)
+            self.build_(shared_params)
         process_list=[]
         if not self.parallel_store_and_training and self.PPO:
             self.modify_ratio_TD()
@@ -2381,13 +2390,22 @@ class RL:
                         if hasattr(self, 'build'):
                             self.shm_metadata = []
                             active_shms = []
-                            for param in self.param:
-                                param=param.numpy()
-                                shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
-                                shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
-                                shared_array[:] = param[:]
-                                self.shm_metadata.append((shm.name, param.shape, param.dtype))
-                                active_shms.append(shm)
+                            if type(self.param) == list:
+                                for param in self.param[0]:
+                                    param=param.numpy()
+                                    shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                    shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                    shared_array[:] = param[:]
+                                    self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                    active_shms.append(shm)
+                            else:
+                                for param in self.param:
+                                    param=param.numpy()
+                                    shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                    shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                    shared_array[:] = param[:]
+                                    self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                    active_shms.append(shm)
                         process_list=[]
                         for p in range(processes):
                             process=mp.Process(target=self.prepare,args=(p,))
@@ -2471,13 +2489,22 @@ class RL:
                         if hasattr(self, 'build'):
                             self.shm_metadata = []
                             active_shms = []
-                            for param in self.param:
-                                param=param.numpy()
-                                shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
-                                shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
-                                shared_array[:] = param[:]
-                                self.shm_metadata.append((shm.name, param.shape, param.dtype))
-                                active_shms.append(shm)
+                            if type(self.param) == list:
+                                for param in self.param[0]:
+                                    param=param.numpy()
+                                    shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                    shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                    shared_array[:] = param[:]
+                                    self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                    active_shms.append(shm)
+                            else:
+                                for param in self.param:
+                                    param=param.numpy()
+                                    shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                    shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                    shared_array[:] = param[:]
+                                    self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                    active_shms.append(shm)
                         process_list=[]
                         for p in range(processes):
                             process=mp.Process(target=self.prepare,args=(p,))
@@ -2722,13 +2749,22 @@ class RL:
                             if hasattr(self, 'build'):
                                 self.shm_metadata = []
                                 active_shms = []
-                                for param in self.param:
-                                    param=param.numpy()
-                                    shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
-                                    shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
-                                    shared_array[:] = param[:]
-                                    self.shm_metadata.append((shm.name, param.shape, param.dtype))
-                                    active_shms.append(shm)
+                                if type(self.param) == list:
+                                    for param in self.param[0]:
+                                        param=param.numpy()
+                                        shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                        shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                        shared_array[:] = param[:]
+                                        self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                        active_shms.append(shm)
+                                else:
+                                    for param in self.param:
+                                        param=param.numpy()
+                                        shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                        shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                        shared_array[:] = param[:]
+                                        self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                        active_shms.append(shm)
                             process_list=[]
                             for p in range(processes):
                                 process=mp.Process(target=self.prepare,args=(p,))
@@ -2811,13 +2847,22 @@ class RL:
                             if hasattr(self, 'build'):
                                 self.shm_metadata = []
                                 active_shms = []
-                                for param in self.param:
-                                    param=param.numpy()
-                                    shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
-                                    shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
-                                    shared_array[:] = param[:]
-                                    self.shm_metadata.append((shm.name, param.shape, param.dtype))
-                                    active_shms.append(shm)
+                                if type(self.param) == list:
+                                    for param in self.param[0]:
+                                        param=param.numpy()
+                                        shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                        shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                        shared_array[:] = param[:]
+                                        self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                        active_shms.append(shm)
+                                else:
+                                    for param in self.param:
+                                        param=param.numpy()
+                                        shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                        shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                        shared_array[:] = param[:]
+                                        self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                        active_shms.append(shm)
                             process_list=[]
                             for p in range(processes):
                                 process=mp.Process(target=self.prepare,args=(p,))
@@ -2903,13 +2948,22 @@ class RL:
                             if hasattr(self, 'build'):
                                 self.shm_metadata = []
                                 active_shms = []
-                                for param in self.param:
-                                    param=param.numpy()
-                                    shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
-                                    shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
-                                    shared_array[:] = param[:]
-                                    self.shm_metadata.append((shm.name, param.shape, param.dtype))
-                                    active_shms.append(shm)
+                                if type(self.param) == list:
+                                    for param in self.param[0]:
+                                        param=param.numpy()
+                                        shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                        shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                        shared_array[:] = param[:]
+                                        self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                        active_shms.append(shm)
+                                else:
+                                    for param in self.param:
+                                        param=param.numpy()
+                                        shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                        shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                        shared_array[:] = param[:]
+                                        self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                        active_shms.append(shm)
                             process_list=[]
                             for p in range(processes):
                                 process=mp.Process(target=self.prepare,args=(p,))
@@ -2998,13 +3052,22 @@ class RL:
                             if hasattr(self, 'build'):
                                 self.shm_metadata = []
                                 active_shms = []
-                                for param in self.param:
-                                    param=param.numpy()
-                                    shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
-                                    shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
-                                    shared_array[:] = param[:]
-                                    self.shm_metadata.append((shm.name, param.shape, param.dtype))
-                                    active_shms.append(shm)
+                                if type(self.param) == list:
+                                    for param in self.param[0]:
+                                        param=param.numpy()
+                                        shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                        shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                        shared_array[:] = param[:]
+                                        self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                        active_shms.append(shm)
+                                else:
+                                    for param in self.param:
+                                        param=param.numpy()
+                                        shm = shared_memory.SharedMemory(create=True, size=param.nbytes)
+                                        shared_array = np.ndarray(param.shape, dtype=param.dtype, buffer=shm.buf)
+                                        shared_array[:] = param[:]
+                                        self.shm_metadata.append((shm.name, param.shape, param.dtype))
+                                        active_shms.append(shm)
                             process_list=[]
                             for p in range(processes):
                                 process=mp.Process(target=self.prepare,args=(p,))
