@@ -269,10 +269,12 @@ class RL:
             for p in nest.flatten(self.param):
                 fixed_bytes += p.numpy().nbytes
         
+        param_shm_bytes = 0
+        for p in nest.flatten(self.shared_param):
+            param_shm_bytes += p.numpy().nbytes
+        
         if parallel_dump:
-            param_shm_bytes = fixed_bytes * 2
-        else:
-            param_shm_bytes = fixed_bytes
+            fixed_bytes = fixed_bytes * 2
         
         if self.PR:
             fixed_bytes += self.pool_size * 4
@@ -290,7 +292,10 @@ class RL:
                 bytes_per_exp += 4
         
         batch = getattr(self, 'batch', 256)
-        var_per_process_bytes = batch * 4 * (2 if self.PPO else 1)
+        if hasattr(self, 'build'):
+            var_per_process_bytes = batch * 4 * (2 if self.PPO else 1) + param_shm_bytes
+        elif hasattr(self, 'build_'):
+            var_per_process_bytes = batch * 4 * (2 if self.PPO else 1)
         per_process_overhead_bytes = int(135 * 1024 * 1024)
         
         best_processes = 1
@@ -2387,7 +2392,7 @@ class RL:
                 train_loss.reset_states()
                 if pool_network==True:
                     if parallel_store_and_training:
-                        if hasattr(self, 'build'):
+                        if hasattr(self, 'build') or hasattr(self, 'build_'):
                             self.shm_metadata = []
                             active_shms = []
                             for param in self.shared_param:
@@ -2477,7 +2482,7 @@ class RL:
                 train_loss.reset_states()
                 if pool_network==True:
                     if parallel_store_and_training:
-                        if hasattr(self, 'build'):
+                        if hasattr(self, 'build') or hasattr(self, 'build_'):
                             self.shm_metadata = []
                             active_shms = []
                             for param in self.shared_param:
@@ -2728,7 +2733,7 @@ class RL:
                             callback.on_episode_begin(i, logs={})
                     if pool_network==True:
                         if parallel_store_and_training:
-                            if hasattr(self, 'build'):
+                            if hasattr(self, 'build') or hasattr(self, 'build_'):
                                 self.shm_metadata = []
                                 active_shms = []
                                 for param in self.shared_param:
@@ -2817,7 +2822,7 @@ class RL:
                             callback.on_episode_begin(i, logs={})
                     if pool_network==True:
                         if parallel_store_and_training:
-                            if hasattr(self, 'build'):
+                            if hasattr(self, 'build') or hasattr(self, 'build_'):
                                 self.shm_metadata = []
                                 active_shms = []
                                 for param in self.shared_param:
@@ -2909,7 +2914,7 @@ class RL:
                             callback.on_episode_begin(i, logs={})
                     if pool_network==True:
                         if parallel_store_and_training:
-                            if hasattr(self, 'build'):
+                            if hasattr(self, 'build') or hasattr(self, 'build_'):
                                 self.shm_metadata = []
                                 active_shms = []
                                 for param in self.shared_param:
@@ -3004,7 +3009,7 @@ class RL:
                             callback.on_episode_begin(i, logs={})
                     if pool_network==True:
                         if parallel_store_and_training:
-                            if hasattr(self, 'build'):
+                            if hasattr(self, 'build') or hasattr(self, 'build_'):
                                 self.shm_metadata = []
                                 active_shms = []
                                 for param in self.shared_param:
@@ -3413,6 +3418,9 @@ class RL:
         output_file=open(path,'wb')
         param=self.param
         self.param=None
+        if hasattr(self, 'build') or hasattr(self, 'build_'):
+            shared_param=self.shared_param
+        self.shared_param=None
         if type(self.optimizer)==list:
             opt_config=[opt.get_config() for opt in self.optimizer]
         else:
@@ -3422,6 +3430,7 @@ class RL:
         self.optimizer=None
         pickle.dump(self,output_file)
         self.param=param
+        self.shared_param=shared_param
         self.optimizer=optimizer
         output_file.close()
         return
@@ -3542,6 +3551,9 @@ class RL:
             output_file=open(path,'wb')
             param=self.param
             self.param=None
+            if hasattr(self, 'build') or hasattr(self, 'build_'):
+                shared_param=self.shared_param
+            self.shared_param=None
             if type(self.optimizer)==list:
                 opt_config=[opt.get_config() for opt in self.optimizer]
             else:
@@ -3581,6 +3593,7 @@ class RL:
         else:
             pickle.dump(param,output_file)
             self.param=param
+            self.shared_param=shared_param
             self.optimizer=optimizer
         if self.parallel_training_and_save:
             if self.parallel_dump==True:
