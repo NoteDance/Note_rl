@@ -258,20 +258,6 @@ This means **only lightweight metadata is pickled** across the process boundary,
 ## How to Define It
 
 `build()` should only reinitialize the agent's layers and structure. **Do not manually load parameters inside `build()`** — the framework handles parameter synchronization automatically via shared memory after `build()` returns.
-```python
-class MyAgent(RL):
-    def init_weights(self):
-        self.dense1 = nn.dense(128, state_dim)
-        self.dense2 = nn.dense(action_dim, 128)
-
-    # Reconstruct model structure in subprocesses
-    def build(self):
-        self.dense1 = nn.dense(128, state_dim)
-        self.dense2 = nn.dense(action_dim, 128)
-
-    def __call__(self, s, a, next_s, r, d):
-        ...
-```
 
 ## When `build()` Is Not Defined
 
@@ -304,29 +290,6 @@ If both `build` and `build_` are defined, the framework gives priority to `build
 ## How to Define It
 
 `build_()` receives the shared memory arrays as its argument. You reconstruct the inference component and use `replace_array()` to wire those arrays directly into it, replacing what would otherwise be freshly allocated variable buffers.
-
-```python
-class PPO(nn.RL):
-    def __init__(self, state_dim, hidden_dim, action_dim, clip_eps, alpha):
-        super().__init__()
-        self.actor = actor(state_dim, hidden_dim, action_dim)
-        self.actor_old = actor(state_dim, hidden_dim, action_dim)
-        nn.assign_param(self.actor_old.param, self.actor.param)
-        self.critic = critic(state_dim, hidden_dim)
-        # Parameters placed into shared memory by the main process
-        self.shared_param = self.actor_old.param
-        self.param = [self.actor.param, self.critic.param]
-        ...
-
-    def build_(self, shared_params):
-        # Reconstruct actor_old and wire shared memory arrays directly into it.
-        # Subprocesses hold no independent copy of these parameters.
-        self.actor_old = actor(self.state_dim, self.hidden_dim, self.action_dim)
-        replace_array(self.actor_old, shared_params)
-
-    def action(self, s):
-        return self.actor_old(s)
-```
 
 The key points:
 - `self.shared_param` declares which parameters the main process exposes via shared memory.
