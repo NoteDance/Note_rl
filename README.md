@@ -303,7 +303,7 @@ If both `build` and `build_` are defined, the framework gives priority to `build
 
 ## How to Define It
 
-`build_()` receives the shared memory arrays as its argument. You reconstruct the inference component and use `nn.replace_array()` to wire those arrays directly into it, replacing what would otherwise be freshly allocated variable buffers.
+`build_()` receives the shared memory arrays as its argument. You reconstruct the inference component and use `replace_array()` to wire those arrays directly into it, replacing what would otherwise be freshly allocated variable buffers.
 
 ```python
 class PPO(nn.RL):
@@ -322,7 +322,7 @@ class PPO(nn.RL):
         # Reconstruct actor_old and wire shared memory arrays directly into it.
         # Subprocesses hold no independent copy of these parameters.
         self.actor_old = actor(self.state_dim, self.hidden_dim, self.action_dim)
-        nn.replace_array(self.actor_old, shared_params)
+        replace_array(self.actor_old, shared_params)
 
     def action(self, s):
         return self.actor_old(s)
