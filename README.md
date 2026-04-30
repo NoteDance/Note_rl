@@ -277,6 +277,66 @@ class MyAgent(RL):
 
 If `build()` is not defined, the framework will skip the shared memory optimization and fall back to pickling the full model (including all parameters) when spawning subprocesses. This is functionally correct but introduces significant serialization overhead for large models. For most standard use cases, defining `build()` is strongly recommended to ensure both correctness and performance in all parallel scenarios.
 
+# `build_()` Method
+
+`build_()` is an **optional user-defined method** implemented in subclasses. It is detected and called inside the internal `prepare()` routine when `parallel_store_and_training=True`, and is the recommended approach when you want subprocesses to use **shared memory arrays directly** rather than maintaining their own copies of the parameters.
+
+## Purpose
+
+When `parallel_store_and_training=True`, the framework places the agent's shared parameters into shared memory so that subprocesses always see the latest values written by the main process. The difference between `build()` and `build_()` lies in how subprocesses access those values:
+
+- With **`build()`**, the subprocess creates its own TensorFlow variables, and the framework then **copies** the shared memory values into them. The subprocess holds its own parameter allocation in addition to the shared memory.
+- With **`build_()`**, the subprocess receives the raw shared memory arrays and wires them **directly** into the model via `nn.replace_array()`. No separate parameter allocation is made — the subprocess reads directly from the shared memory buffer.
+
+This makes `build_()` strictly more memory-efficient: each subprocess holds no independent copy of the parameters at all.
+
+## Comparison with `build()`
+
+| | `build()` | `build_()` |
+|---|---|---|
+| **Parameter storage in subprocesses** | New variables allocated; shared memory values copied in | Shared memory arrays used directly — no extra allocation |
+| **Parameter argument** | None — framework handles the copy automatically | Receives `shared_params` (the raw shared memory arrays) directly |
+| **Memory overhead per subprocess** | Full parameter size duplicated per process | Zero extra parameter memory |
+| **Typical use case** | General agents | Any agent where minimizing subprocess memory is important |
+
+If both `build` and `build_` are defined, the framework gives priority to `build`.
+
+## How to Define It
+
+`build_()` receives the shared memory arrays as its argument. You reconstruct the inference component and use `nn.replace_array()` to wire those arrays directly into it, replacing what would otherwise be freshly allocated variable buffers.
+
+```python
+class PPO(nn.RL):
+    def __init__(self, state_dim, hidden_dim, action_dim, clip_eps, alpha):
+        super().__init__()
+        self.actor = actor(state_dim, hidden_dim, action_dim)
+        self.actor_old = actor(state_dim, hidden_dim, action_dim)
+        nn.assign_param(self.actor_old.param, self.actor.param)
+        self.critic = critic(state_dim, hidden_dim)
+        # Parameters placed into shared memory by the main process
+        self.shared_param = self.actor_old.param
+        self.param = [self.actor.param, self.critic.param]
+        ...
+
+    def build_(self, shared_params):
+        # Reconstruct actor_old and wire shared memory arrays directly into it.
+        # Subprocesses hold no independent copy of these parameters.
+        self.actor_old = actor(self.state_dim, self.hidden_dim, self.action_dim)
+        nn.replace_array(self.actor_old, shared_params)
+
+    def action(self, s):
+        return self.actor_old(s)
+```
+
+The key points:
+- `self.shared_param` declares which parameters the main process exposes via shared memory.
+- `build_()` reconstructs the inference component and calls `nn.replace_array()` to replace its variable buffers with the shared memory arrays — no copy is made.
+- Every read in the subprocess goes directly to the shared memory buffer, so it always reflects the latest values without any synchronization step.
+
+## When `build_()` Is Not Defined
+
+If neither `build()` nor `build_()` is defined, the framework falls back to pickling the full model when spawning subprocesses. This is functionally correct but incurs serialization overhead and allocates a full independent copy of all parameters in every subprocess. Defining `build_()` eliminates both of these costs.
+
 # Advanced Adaptive Hyperparameter Adjustment
 
 The `RL` class includes powerful adaptive mechanisms to dynamically tune hyperparameters during training based on **Effective Sample Size (ESS)** from prioritized weights or **gradient noise**. These methods help combat issues like weight collapse in prioritized replay, improve sample efficiency, and stabilize training. They are particularly useful with `PR=True` (Prioritized Replay) or `PPO=True`.
