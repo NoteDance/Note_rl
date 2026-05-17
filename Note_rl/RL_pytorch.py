@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 import multiprocessing as mp
+from multiprocessing import shared_memory
 import Note_rl.policy as Policy
 from Note_rl.prioritized_replay import PR
 from Note_rl.prioritized_replay import SumTree
@@ -234,57 +235,67 @@ class RL_pytorch:
         return
     
     
-    def get_optimal_processes(self, 
-                              memory_mb: float, 
+    def get_optimal_processes(self,
+                              memory_mb: float,
                               safety_factor: float = 0.75,
                               min_exp_per_proc: int = None,
-                              parallel_dump: bool = True) -> int:
+                              parallel_dump: bool = False,
+                              process_overhead_mb: float = 60.0) -> int:
         if not hasattr(self, 'pool_size') or self.pool_size is None:
             return min(8, mp.cpu_count())
-        
+    
         if min_exp_per_proc is None:
             min_exp_per_proc = getattr(self, 'batch', 256) * 10
-        
+    
         memory_bytes = memory_mb * 1024 * 1024
         cpu_cores = mp.cpu_count()
-        
+    
         fixed_bytes = 0
         if hasattr(self, 'param'):
-            from tensorflow.python.util import nest
-            for p in nest.flatten(self.param):
-                fixed_bytes += p.numpy().nbytes
-        
+            for group in (self.param if isinstance(self.param, list) else [self.param]):
+                params = group if isinstance(group, (list, tuple)) else [group]
+                for p in params:
+                    if hasattr(p, 'numel'):
+                        fixed_bytes += p.numel() * p.element_size()
+                    elif hasattr(p, 'params'):
+                        for t in p['params']:
+                            fixed_bytes += t.numel() * t.element_size()
+    
+        param_shm_bytes = 0
+        if hasattr(self, 'shared_param'):
+            for p in (self.shared_param if isinstance(self.shared_param, (list, tuple))
+                      else [self.shared_param]):
+                if hasattr(p, 'numel'):
+                    param_shm_bytes += p.numel() * p.element_size()
+    
         if parallel_dump:
-            param_shm_bytes = fixed_bytes * 2
-        else:
-            param_shm_bytes = fixed_bytes
-        
+            fixed_bytes *= 2
+    
         if self.PR:
             fixed_bytes += self.pool_size * 4
             if self.PPO:
                 fixed_bytes += self.pool_size * 4
-        
+    
         s_elements = int(np.prod(self.state_shape)) if hasattr(self, 'state_shape') else 1024
         a_elements = int(np.prod(self.action_shape)) if hasattr(self, 'action_shape') else 8
-        bytes_per_exp = (s_elements * 4 + a_elements * 4 +
-                         s_elements * 4 + 4 + 4)
-        
+        bytes_per_exp = s_elements * 4 + a_elements * 4 + s_elements * 4 + 4 + 4
+    
         if self.PR:
             bytes_per_exp += 4
             if self.PPO:
                 bytes_per_exp += 4
-        
+    
         batch = getattr(self, 'batch', 256)
-        var_per_process_bytes = batch * 4 * (2 if self.PPO else 1)
-        per_process_overhead_bytes = int(135 * 1024 * 1024)
-        
+        var_per_process_bytes = batch * 4 * (2 if self.PPO else 1) + param_shm_bytes
+        per_process_overhead_bytes = int(process_overhead_mb * 1024 * 1024)
+    
         best_processes = 1
         for n_proc in range(1, cpu_cores + 1):
             exp_per_proc = math.ceil(self.pool_size / n_proc)
-            
+    
             if exp_per_proc < min_exp_per_proc:
                 break
-            
+    
             exp_mem = self.pool_size * bytes_per_exp
             tree_mem = 0
             if self.PR and hasattr(self.prioritized_replay, 'sum_trees'):
@@ -292,26 +303,27 @@ class RL_pytorch:
                 while cap < exp_per_proc:
                     cap <<= 1
                 tree_mem = n_proc * (2 * cap - 1) * 4
-            
+    
             total_mem = (fixed_bytes + param_shm_bytes + exp_mem + tree_mem +
                          n_proc * (var_per_process_bytes + per_process_overhead_bytes))
-            
+    
             if total_mem > memory_bytes * safety_factor:
                 break
-            
+    
             best_processes = n_proc
-        
+    
         print(f"Memory Analysis (Available {memory_mb:.0f} MB):")
         print(f"   • Experience buffer total: {self.pool_size * bytes_per_exp / (1024*1024):.1f} MB")
-        print(f"   • Model parameters: {fixed_bytes / (1024*1024):.1f} MB (shared)")
-        print(f"   • Per-process tf.Variable + overhead: ≈{(var_per_process_bytes + per_process_overhead_bytes) / (1024*1024):.1f} MB")
+        print(f"   • Model parameters: {fixed_bytes / (1024*1024):.1f} MB")
+        print(f"   • Shared inference params: {param_shm_bytes / (1024*1024):.1f} MB")
+        print(f"   • Per-process tensor + overhead: ≈{(var_per_process_bytes + per_process_overhead_bytes) / (1024*1024):.1f} MB")
         print(f"   • Minimum experiences per process: ≥ {min_exp_per_proc} entries")
         print(f"   • CPU cores: {cpu_cores}")
         print(f"   → **Recommended processes: {best_processes}** (≈ {self.pool_size // best_processes} experiences per process)")
-        
+    
         if best_processes == 1 and self.pool_size // best_processes < min_exp_per_proc // 2:
             print("⚠️  Warning: pool_size is small. Consider lowering min_exp_per_proc or increasing pool_size.")
-        
+    
         return best_processes
     
     
@@ -1420,6 +1432,109 @@ class RL_pytorch:
             
             
     def prepare(self, p=None):
+        if hasattr(self, 'build'):
+            self.build()
+            shared_params = []
+            active_shms = []
+            for name, shape, dtype in self.shm_metadata:
+                shm = shared_memory.SharedMemory(name=name)
+                active_shms.append(shm)
+                param_array = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
+                shared_params.append(param_array)
+            for target_param, source_array in zip(self.param, shared_params):
+                target_param.data = torch.from_numpy(source_array)
+        elif hasattr(self, 'build_'):
+            shared_params = []
+            active_shms = []
+            for name, shape, dtype in self.shm_metadata:
+                shm = shared_memory.SharedMemory(name=name)
+                active_shms.append(shm)
+                param_array = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
+                shared_params.append(param_array)
+            self.build_(shared_params)
+        process_list=[]
+        if not self.parallel_store_and_training and self.PPO:
+            self.modify_ratio_TD()
+        elif not self.parallel_store_and_training:
+            self.modify_TD()
+        counter=0
+        if hasattr(self, 'original_batch'):
+            self.batch = self.original_batch
+            if hasattr(self, 'ema_ess'):
+                self.ema_ess = None
+            else:
+                self.ema_noise = None
+        if hasattr(self, 'original_num_updates'):
+            self.num_updates = self.original_num_updates
+            self.ema_num_updates = None
+            self.batch_counter = 0
+        if self.parallel_store_and_training:
+            num_store = self.num_store.value
+        else:
+            num_store = self.num_store
+        while True:
+            if self.parallel_store_and_training:
+                self.store_in_parallel(p)
+            else:
+                for p in range(self.processes):
+                    process=mp.Process(target=self.store_in_parallel,args=(p,))
+                    process.start()
+                    process_list.append(process)
+                for process in process_list:
+                    process.join()
+            counter+=1
+            if self.parallel_store_and_training and counter==num_store:
+                break
+            if not self.parallel_store_and_training:
+                if self.state_pool is not None and len(self.state_pool)>=self.batch and counter<self.num_store:
+                        continue
+                self.state_pool=np.concatenate(self.state_pool_list)
+                self.action_pool=np.concatenate(self.action_pool_list)
+                self.next_state_pool=np.concatenate(self.next_state_pool_list)
+                self.reward_pool=np.concatenate(self.reward_pool_list)
+                self.done_pool=np.concatenate(self.done_pool_list)
+                if counter<self.num_store and len(self.state_pool)<self.batch:
+                    continue
+                if not self.PR and self.num_updates!=None:
+                    if len(self.state_pool)>=self.pool_size_:
+                        idx=np.random.choice(self.state_pool.shape[0], size=self.pool_size_, replace=False)
+                    else:
+                        idx=np.random.choice(self.state_pool.shape[0], size=self.state_pool.shape[0], replace=False)
+                    self.state_pool=self.state_pool[idx]
+                    self.action_pool=self.action_pool[idx]
+                    self.next_state_pool=self.next_state_pool[idx]
+                    self.reward_pool=self.reward_pool[idx]
+                    self.done_pool=self.done_pool[idx]
+                if len(self.state_pool)>=self.batch:
+                    break
+        if not self.parallel_store_and_training:
+            if hasattr(self,'window_size_func'):
+                for p in range(self.processes):
+                    if not hasattr(self,'ess_'):
+                        self.ess_ = [None] * self.processes
+                    if self.PPO:
+                        scores = self.lambda_ * self._get_buffer(p, 'TD')[:self.pool_lengths[p]] + (1.0-self.lambda_) * torch.abs(self._get_buffer(p, 'ratio')[:self.pool_lengths[p]] - 1.0)
+                        weights = scores + 1e-7
+                    else:
+                        weights = self._get_buffer(p, 'TD')[:self.pool_lengths[p]] + 1e-7
+                    self.ess_[p] = self.compute_ess_from_weights(weights)
+            self.initialize_adjusting()    
+            if self.PR==True:
+                if self.PPO:
+                    ratio_list = [self._get_buffer(p, 'ratio')[:self.pool_lengths[p]] for p in range(self.processes)]
+                    self.prioritized_replay.ratio = np.concatenate(ratio_list, axis=0)
+                    TD_list = [self._get_buffer(p, 'TD')[:self.pool_lengths[p]] for p in range(self.processes)]
+                    self.prioritized_replay.TD = np.concatenate(TD_list, axis=0)
+                else:
+                    TD_list = [self._get_buffer(p, 'TD')[:self.pool_lengths[p]] for p in range(self.processes)]
+                    self.prioritized_replay.TD = np.concatenate(TD_list, axis=0)
+                if hasattr(self, 'adjust_func') and len(self.state_pool)>=self.pool_size_:
+                    self.ess=self.compute_ess(None,None)
+        else:
+            self.end_flag_list[p]=True
+        if hasattr(self, 'build'):
+            for shm in active_shms:
+                shm.close()
         process_list=[]
         if not self.parallel_store_and_training and self.PPO:
             self.modify_ratio_TD()
@@ -1699,6 +1814,16 @@ class RL_pytorch:
                 t1=time.time()
                 if pool_network==True:
                     if parallel_store_and_training:
+                        if hasattr(self, 'build') or hasattr(self, 'build_'):
+                            self.shm_metadata = []
+                            active_shms = []
+                            for param in self.shared_param:
+                                param_np = param.detach().numpy()
+                                shm = shared_memory.SharedMemory(create=True, size=param_np.nbytes)
+                                shared_array = np.ndarray(param_np.shape, dtype=param_np.dtype, buffer=shm.buf)
+                                shared_array[:] = param_np[:]
+                                self.shm_metadata.append((shm.name, param_np.shape, param_np.dtype))
+                                active_shms.append(shm)
                         process_list=[]
                         for p in range(processes):
                             process=mp.Process(target=self.prepare,args=(p,))
@@ -1710,9 +1835,10 @@ class RL_pytorch:
                         self.train1()
                         for process in process_list:
                             process.join()
-                    else:
-                        self.prepare()
-                        loss=self.train1()
+                        if hasattr(self, 'build'):
+                            for shm in active_shms:
+                                shm.close()
+                                shm.unlink()
                 else:
                     loss=self.train2()
                 self.loss=loss
@@ -1755,6 +1881,16 @@ class RL_pytorch:
                 t1=time.time()
                 if pool_network==True:
                     if parallel_store_and_training:
+                        if hasattr(self, 'build') or hasattr(self, 'build_'):
+                            self.shm_metadata = []
+                            active_shms = []
+                            for param in self.shared_param:
+                                param_np = param.detach().numpy()
+                                shm = shared_memory.SharedMemory(create=True, size=param_np.nbytes)
+                                shared_array = np.ndarray(param_np.shape, dtype=param_np.dtype, buffer=shm.buf)
+                                shared_array[:] = param_np[:]
+                                self.shm_metadata.append((shm.name, param_np.shape, param_np.dtype))
+                                active_shms.append(shm)
                         process_list=[]
                         for p in range(processes):
                             process=mp.Process(target=self.prepare,args=(p,))
@@ -1766,6 +1902,10 @@ class RL_pytorch:
                         self.train1()
                         for process in process_list:
                             process.join()
+                        if hasattr(self, 'build'):
+                            for shm in active_shms:
+                                shm.close()
+                                shm.unlink()
                     else:
                         self.prepare()
                         loss=self.train1()
