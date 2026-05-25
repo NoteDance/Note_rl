@@ -2410,7 +2410,7 @@ class RL:
                         for process in process_list:
                             process.join()
                         if hasattr(self, 'build'):
-                            for shm in shm_list:
+                            for shm in active_shms:
                                 shm.close()
                                 shm.unlink()
                     else:
@@ -2500,7 +2500,7 @@ class RL:
                         for process in process_list:
                             process.join()
                         if hasattr(self, 'build'):
-                            for shm in shm_list:
+                            for shm in active_shms:
                                 shm.close()
                                 shm.unlink()
                     else:
@@ -2751,7 +2751,7 @@ class RL:
                             for process in process_list:
                                 process.join()
                             if hasattr(self, 'build'):
-                                for shm in shm_list:
+                                for shm in active_shms:
                                     shm.close()
                                     shm.unlink()
                         else:
@@ -2840,7 +2840,7 @@ class RL:
                             for process in process_list:
                                 process.join()
                             if hasattr(self, 'build'):
-                                for shm in shm_list:
+                                for shm in active_shms:
                                     shm.close()
                                     shm.unlink()
                         else:
@@ -2932,7 +2932,7 @@ class RL:
                             for process in process_list:
                                 process.join()
                             if hasattr(self, 'build'):
-                                for shm in shm_list:
+                                for shm in active_shms:
                                     shm.close()
                                     shm.unlink()
                         else:
@@ -3027,7 +3027,7 @@ class RL:
                             for process in process_list:
                                 process.join()
                             if hasattr(self, 'build'):
-                                for shm in shm_list:
+                                for shm in active_shms:
                                     shm.close()
                                     shm.unlink()
                         else:
@@ -3691,6 +3691,8 @@ class RL:
                         if hasattr(self.prioritized_replay, 'sum_trees'):
                             pickle.dump(self._get_buffer(p, 'sum_trees'),output_file)
             output_file.close()
+        for shm in self.active_shms:
+            shm.close()
         return
     
     
